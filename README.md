@@ -1,1 +1,0 @@
-# VJTI-hte-samvad-rag
