@@ -5,10 +5,10 @@ class HybridRetriever:
         self.embedder = embedder
         self.alpha = alpha
 
-    def search(self, query, top_k=3, tenant_id: str = None):
-        # Vector search - pass tenant_id for multi-tenant isolation
+    def search(self, query, top_k=3, tenant_id: str = None, document_ids: list = None):
+        # Vector search - pass tenant_id and document_ids for multi-tenant & multi-document filtering
         q_vec = self.embedder.embed_texts([query])[0]
-        vector_results = self.vector_store.search(q_vec, top_k*2, tenant_id=tenant_id)
+        vector_results = self.vector_store.search(q_vec, top_k*2, tenant_id=tenant_id, document_ids=document_ids)
 
         # BM25 search
         bm25_results = self.bm25.search(query, top_k*2)

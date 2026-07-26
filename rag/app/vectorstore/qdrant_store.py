@@ -22,29 +22,47 @@ class QdrantStore:
         self._ensure_collection()
 
     def _ensure_collection(self):
+        exists = False
         try:
-            self.client.get_collection(collection_name=self.collection_name)
-            return
+            if hasattr(self.client, "collection_exists"):
+                exists = bool(self.client.collection_exists(collection_name=self.collection_name))
+            else:
+                self.client.get_collection(collection_name=self.collection_name)
+                exists = True
         except Exception:
-            pass
+            exists = False
 
-        self.client.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=VectorParams(
-                size=384,  # embedding dimension
-                distance=Distance.COSINE
-            )
-        )
+        if not exists:
+            try:
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=VectorParams(
+                        size=384,  # embedding dimension
+                        distance=Distance.COSINE
+                    )
+                )
+            except Exception as e:
+                # Another request may have created it concurrently
+                msg = str(e).lower()
+                if "already exists" not in msg and "409" not in msg:
+                    raise
 
-        # Create payload index on tenant_id for fast filtering during multi-tenant searches
-        try:
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="tenant_id",
-                field_schema=PayloadSchemaType.UUID
-            )
-        except Exception:
-            pass
+        # Always ensure payload indexes exist (needed for filtered search on existing collections)
+        self._ensure_payload_indexes()
+
+    def _ensure_payload_indexes(self):
+        for field_name, field_schema in (
+            ("tenant_id", PayloadSchemaType.KEYWORD),
+            ("document_id", PayloadSchemaType.KEYWORD),
+        ):
+            try:
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=field_name,
+                    field_schema=field_schema,
+                )
+            except Exception:
+                pass
 
     def upload(self, vectors, payloads=None, ids=None, texts=None, tenant_id: str = None):
         self._ensure_collection()
@@ -75,22 +93,29 @@ class QdrantStore:
             points=points
         )
 
-    def search(self, query_vector, top_k=3, tenant_id: str = None):
-        from qdrant_client.models import FieldCondition, MatchValue, Filter
+    def search(self, query_vector, top_k=3, tenant_id: str = None, document_ids: list = None):
+        from qdrant_client.models import FieldCondition, MatchValue, MatchAny, Filter
 
         self._ensure_collection()
 
-        # Build filter for tenant_id to ensure multi-tenant isolation
-        query_filter = None
+        must_conditions = []
         if tenant_id:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="tenant_id",
-                        match=MatchValue(value=tenant_id)
-                    )
-                ]
+            must_conditions.append(
+                FieldCondition(
+                    key="tenant_id",
+                    match=MatchValue(value=tenant_id)
+                )
             )
+
+        if document_ids:
+            must_conditions.append(
+                FieldCondition(
+                    key="document_id",
+                    match=MatchAny(any=[str(d) for d in document_ids])
+                )
+            )
+
+        query_filter = Filter(must=must_conditions) if must_conditions else None
 
         results = self.client.query_points(
             collection_name=self.collection_name,
@@ -100,3 +125,16 @@ class QdrantStore:
         ).points
 
         return results
+
+    def delete_document(self, tenant_id: str, document_id: str):
+        from qdrant_client.models import FieldCondition, MatchValue, Filter
+        self._ensure_collection()
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)),
+                    FieldCondition(key="document_id", match=MatchValue(value=document_id))
+                ]
+            )
+        )

@@ -83,6 +83,13 @@ class ChatMessage(Base):
     session: Mapped[ChatSession] = relationship(back_populates="messages")
 
 
+class ChatSessionDocument(Base):
+    __tablename__ = "chat_session_documents"
+
+    chat_session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), primary_key=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True)
+
+
 def _get_database_url() -> str:
     url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DB_URL")
     if not url:
@@ -329,3 +336,67 @@ class PostgresStore:
             s.delete(session_row)
             s.commit()
             return True
+
+    def list_documents(self, *, user_id: uuid.UUID) -> List[Document]:
+        with self.session() as s:
+            return list(
+                s.execute(
+                    select(Document).where(Document.user_id == user_id).order_by(Document.created_at.desc())
+                )
+                .scalars()
+                .all()
+            )
+
+    def get_documents_by_ids(self, *, user_id: uuid.UUID, document_ids: List[uuid.UUID]) -> List[Document]:
+        if not document_ids:
+            return []
+        with self.session() as s:
+            return list(
+                s.execute(
+                    select(Document).where(
+                        (Document.user_id == user_id) & (Document.id.in_(document_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+    def delete_document(self, *, user_id: uuid.UUID, document_id: uuid.UUID) -> bool:
+        with self.session() as s:
+            doc = s.execute(
+                select(Document).where((Document.user_id == user_id) & (Document.id == document_id)).limit(1)
+            ).scalar_one_or_none()
+            if not doc:
+                return False
+            s.delete(doc)
+            s.commit()
+            return True
+
+    def fetch_chunks_by_document_ids(self, *, user_id: uuid.UUID, document_ids: List[uuid.UUID]) -> List[Chunk]:
+        if not document_ids:
+            return []
+        with self.session() as s:
+            return list(
+                s.execute(
+                    select(Chunk).where(
+                        (Chunk.user_id == user_id) & (Chunk.document_id.in_(document_ids))
+                    ).order_by(Chunk.document_id.asc(), Chunk.chunk_index.asc())
+                )
+                .scalars()
+                .all()
+            )
+
+    def link_session_documents(self, *, session_id: uuid.UUID, document_ids: List[uuid.UUID]) -> None:
+        with self.session() as s:
+            s.query(ChatSessionDocument).filter(ChatSessionDocument.chat_session_id == session_id).delete()
+            for doc_id in document_ids:
+                link = ChatSessionDocument(chat_session_id=session_id, document_id=doc_id)
+                s.add(link)
+            s.commit()
+
+    def get_session_document_ids(self, *, session_id: uuid.UUID) -> List[uuid.UUID]:
+        with self.session() as s:
+            rows = s.execute(
+                select(ChatSessionDocument.document_id).where(ChatSessionDocument.chat_session_id == session_id)
+            ).all()
+            return [r[0] for r in rows]

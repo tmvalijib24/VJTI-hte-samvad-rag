@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 import os
 import shutil
 import uuid
-from typing import Optional
+from typing import Optional, List
 
 from app.auth.security import (
     ACCESS_TOKEN_MINUTES,
@@ -39,11 +39,13 @@ app.add_middleware(
 
 
 class IngestUrlRequest(BaseModel):
-    url: str = Field(..., min_length=8)
+    url: Optional[str] = None
+    urls: Optional[List[str]] = None
 
 
 class AskRequest(BaseModel):
-    document_id: str
+    document_id: Optional[str] = None
+    document_ids: Optional[List[str]] = None
     question: str = Field(..., min_length=1)
     top_k: int = Field(10, ge=1, le=20)
     session_id: Optional[str] = None
@@ -57,6 +59,7 @@ class BasicChatRequest(BaseModel):
 class ChatSessionCreateRequest(BaseModel):
     mode: str = Field(..., min_length=4)
     document_id: Optional[str] = None
+    document_ids: Optional[List[str]] = None
 
 
 class ChatSessionUpdateRequest(BaseModel):
@@ -144,60 +147,133 @@ def refresh(req: AuthRefreshRequest):
 @app.post("/ingest/url")
 @limiter.limit(RATE_LIMIT_INGEST)
 def ingest_url(req: IngestUrlRequest, request: Request, user: User = Depends(get_current_user)):
-    """Ingest a document from URL with multi-tenant isolation and rate limiting."""
+    """Ingest document(s) from URL(s) with multi-tenant isolation and rate limiting."""
     try:
-        res = ingest_and_index(str(user.id), req.url)
-        return {
-            "document_id": res.document_id,
-            "source": res.source,
-            "raw_count": res.raw_count,
-            "chunk_count": res.chunk_count,
-        }
+        urls = req.urls if req.urls else ([req.url] if req.url else [])
+        if not urls:
+            raise HTTPException(status_code=400, detail="Either url or urls must be provided.")
+        results = []
+        for url in urls:
+            res = ingest_and_index(str(user.id), url, title=url)
+            results.append({
+                "document_id": res.document_id,
+                "source": res.source,
+                "raw_count": res.raw_count,
+                "chunk_count": res.chunk_count,
+            })
+        if req.urls:
+            return {"results": results}
+        else:
+            return results[0]
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+MAX_BULK_UPLOAD_FILES = 5
 
 
 @app.post("/ingest/file")
 @limiter.limit(RATE_LIMIT_INGEST)
-async def ingest_file(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
-    """Ingest a document from file upload with multi-tenant isolation and rate limiting."""
-    filename = file.filename or ""
-    _, ext = os.path.splitext(filename.lower())
-    if ext not in {".pdf", ".txt", ".csv"}:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, TXT, or CSV.")
+async def ingest_file(request: Request, files: List[UploadFile] = File(...), user: User = Depends(get_current_user)):
+    """Ingest one or more documents from file upload with multi-tenant isolation and rate limiting."""
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required.")
+    if len(files) > MAX_BULK_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {MAX_BULK_UPLOAD_FILES} files per upload request.",
+        )
 
-    os.makedirs("storage/uploads", exist_ok=True)
-    saved_path = os.path.join("storage", "uploads", f"{uuid.uuid4().hex}{ext}")
+    results = []
+    for file in files:
+        filename = file.filename or ""
+        _, ext = os.path.splitext(filename.lower())
+        if ext not in {".pdf", ".txt", ".csv"}:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type for {filename}. Use PDF, TXT, or CSV.")
 
-    try:
-        with open(saved_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to save uploaded file.") from e
-    finally:
+        os.makedirs("storage/uploads", exist_ok=True)
+        saved_path = os.path.join("storage", "uploads", f"{uuid.uuid4().hex}{ext}")
+
         try:
-            file.file.close()
-        except Exception:
-            pass
+            with open(saved_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save uploaded file {filename}.") from e
+        finally:
+            try:
+                file.file.close()
+            except Exception:
+                pass
 
+        try:
+            res = ingest_and_index(str(user.id), saved_path, title=filename)
+            results.append({
+                "document_id": res.document_id,
+                "source": filename,
+                "raw_count": res.raw_count,
+                "chunk_count": res.chunk_count,
+            })
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to ingest file {filename}: {str(e)}") from e
+
+    return {"results": results}
+
+
+@app.get("/documents")
+def list_documents(user: User = Depends(get_current_user)):
+    """List all documents uploaded by the current user."""
+    pg = PostgresStore()
+    docs = pg.list_documents(user_id=user.id)
+    return {
+        "documents": [
+            {
+                "id": str(d.id),
+                "source": d.source,
+                "title": d.title or os.path.basename(d.source),
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in docs
+        ]
+    }
+
+
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: str, user: User = Depends(get_current_user)):
+    """Delete a document, its database chunks, and Qdrant vectors."""
     try:
-        res = ingest_and_index(str(user.id), saved_path)
-        return {
-            "document_id": res.document_id,
-            "source": res.source,
-            "raw_count": res.raw_count,
-            "chunk_count": res.chunk_count,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid document_id") from e
+
+    pg = PostgresStore()
+    # Delete from PostgreSQL (cascades to chunks)
+    deleted = pg.delete_document(user_id=user.id, document_id=doc_uuid)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Delete from Qdrant vector store
+    from app.vectorstore.qdrant_store import QdrantStore
+    store = QdrantStore()
+    store.delete_document(tenant_id=str(user.id), document_id=document_id)
+
+    return {"ok": True}
 
 
 @app.post("/ask")
 @limiter.limit(RATE_LIMIT_ASK)
 def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user)):
-    """Answer a question about a user's document with multi-tenant isolation and rate limiting."""
+    """Answer a question about user's documents with multi-tenant isolation and rate limiting."""
     try:
         pg = PostgresStore()
+
+        # Parse document UUIDs
+        doc_uuids = []
+        if req.document_ids:
+            doc_uuids = [uuid.UUID(d) for d in req.document_ids if d]
+        elif req.document_id:
+            doc_uuids = [uuid.UUID(req.document_id)]
 
         session_row = None
         if req.session_id:
@@ -211,14 +287,11 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
             if session_row.mode != "document":
                 raise HTTPException(status_code=400, detail="session_id is not a document-mode chat")
 
-        doc_uuid = uuid.UUID(req.document_id)
-        if session_row and session_row.document_id and session_row.document_id != doc_uuid:
-            raise HTTPException(status_code=400, detail="session document_id does not match request document_id")
         if not session_row:
             session_row = pg.create_chat_session(
                 user_id=user.id,
                 mode="document",
-                document_id=doc_uuid,
+                document_id=doc_uuids[0] if doc_uuids else None,
                 title=req.question[:120],
             )
 
@@ -232,9 +305,15 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
             content=req.question,
         )
 
+        # Prefer request document_ids; otherwise fall back to session links
+        if doc_uuids:
+            pg.link_session_documents(session_id=session_row.id, document_ids=doc_uuids)
+        else:
+            doc_uuids = pg.get_session_document_ids(session_id=session_row.id)
+
         result = answer_question(
             user_id=str(user.id),
-            document_id=req.document_id,
+            document_ids=[str(d) for d in doc_uuids],
             question=req.question,
             top_k=req.top_k,
             chat_history=chat_history,
@@ -310,19 +389,31 @@ def create_chat_session(req: ChatSessionCreateRequest, user: User = Depends(get_
     if mode not in {"basic", "document"}:
         raise HTTPException(status_code=400, detail="mode must be 'basic' or 'document'")
 
-    document_uuid = None
-    if req.document_id:
+    doc_uuids: List[uuid.UUID] = []
+    if req.document_ids:
         try:
-            document_uuid = uuid.UUID(req.document_id)
+            doc_uuids = [uuid.UUID(d) for d in req.document_ids if d]
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid document_ids") from e
+    elif req.document_id:
+        try:
+            doc_uuids = [uuid.UUID(req.document_id)]
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid document_id") from e
 
+    document_uuid = doc_uuids[0] if doc_uuids else None
+
     pg = PostgresStore()
     row = pg.create_chat_session(user_id=user.id, mode=mode, document_id=document_uuid)
+
+    if doc_uuids:
+        pg.link_session_documents(session_id=row.id, document_ids=doc_uuids)
+
     return {
         "id": str(row.id),
         "mode": row.mode,
         "document_id": str(row.document_id) if row.document_id else None,
+        "document_ids": [str(d) for d in doc_uuids],
         "title": row.title,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -340,18 +431,22 @@ def list_chat_sessions(mode: Optional[str] = None, document_id: Optional[str] = 
 
     pg = PostgresStore()
     rows = pg.list_chat_sessions(user_id=user.id, mode=mode, document_id=document_uuid, limit=limit)
+    
+    sessions_list = []
+    for r in rows:
+        linked_docs = pg.get_session_document_ids(session_id=r.id)
+        sessions_list.append({
+            "id": str(r.id),
+            "mode": r.mode,
+            "document_id": str(r.document_id) if r.document_id else None,
+            "document_ids": [str(d) for d in linked_docs],
+            "title": r.title,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        })
+
     return {
-        "sessions": [
-            {
-                "id": str(r.id),
-                "mode": r.mode,
-                "document_id": str(r.document_id) if r.document_id else None,
-                "title": r.title,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-            }
-            for r in rows
-        ]
+        "sessions": sessions_list
     }
 
 
@@ -367,12 +462,14 @@ def get_chat_history(session_id: str, limit: int = 200, user: User = Depends(get
     if not session_row:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
+    linked_docs = pg.get_session_document_ids(session_id=sid)
     rows = pg.list_chat_messages(user_id=user.id, session_id=sid, limit=limit)
     return {
         "session": {
             "id": str(session_row.id),
             "mode": session_row.mode,
             "document_id": str(session_row.document_id) if session_row.document_id else None,
+            "document_ids": [str(d) for d in linked_docs],
             "title": session_row.title,
             "created_at": session_row.created_at.isoformat() if session_row.created_at else None,
             "updated_at": session_row.updated_at.isoformat() if session_row.updated_at else None,

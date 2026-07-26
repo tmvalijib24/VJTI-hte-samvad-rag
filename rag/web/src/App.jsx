@@ -22,13 +22,13 @@ function App() {
     }
   })
   const [askMode, setAskMode] = useState('document')
-  const [documentId, setDocumentId] = useState(null)
-  const [source, setSource] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [selectedDocIds, setSelectedDocIds] = useState([])
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
   const [url, setUrl] = useState('')
-  const [file, setFile] = useState(null)
+  const [files, setFiles] = useState([])
 
   const [messages, setMessages] = useState([
     {
@@ -67,15 +67,15 @@ function App() {
 
   const canAsk = useMemo(() => {
     if (isBusy || question.trim().length === 0) return false
-    if (askMode === 'document') return Boolean(documentId)
+    if (askMode === 'document') return selectedDocIds.length > 0
     return true
-  }, [askMode, documentId, question, isBusy])
+  }, [askMode, selectedDocIds, question, isBusy])
 
-  function defaultAssistantMessage(nextMode, nextDocumentId) {
+  function defaultAssistantMessage(nextMode, selectedCount) {
     if (nextMode === 'document') {
-      return nextDocumentId
-        ? 'Document mode is active. Ask about your ingested content.'
-        : 'Ingest a file or URL first, then ask from PDF/Text.'
+      return selectedCount > 0
+        ? 'Document mode is active. Ask about your selected content.'
+        : 'Upload or select document(s) first, then ask questions.'
     }
     return 'Basic chat mode is active. Ask anything.'
   }
@@ -124,20 +124,44 @@ function App() {
     localStorage.setItem('auth_user', JSON.stringify(nextUser || {}))
   }
 
-  function persistDocumentSelection(nextDocument) {
-    const nextDocumentId = nextDocument?.id || ''
-    const nextSource = nextDocument?.source || ''
+  async function loadDocuments() {
+    try {
+      const res = await apiFetch('/documents')
+      const { json } = await readJsonOrText(res)
+      if (res.ok) {
+        setDocuments(json.documents || [])
+      }
+    } catch (e) {
+      console.error("Failed to load documents:", e)
+    }
+  }
 
-    setDocumentId(nextDocumentId || null)
-    setSource(nextSource || null)
+  async function deleteDocument(documentId) {
+    if (!window.confirm("Are you sure you want to delete this document? This will remove all its chunks and chat citations.")) return
+    setError('')
+    setStatus('')
+    setIsBusy(true)
+    try {
+      const res = await apiFetch(`/documents/${documentId}`, { method: 'DELETE' })
+      const { json, text } = await readJsonOrText(res)
+      if (!res.ok) throw new Error(json?.detail || text || `Failed to delete document (HTTP ${res.status}).`)
+      
+      setStatus("Document deleted successfully.")
+      setSelectedDocIds(prev => prev.filter(id => id !== documentId))
+      await loadDocuments()
+    } catch (e) {
+      setError(e.message || String(e))
+    } finally {
+      setIsBusy(false)
+    }
   }
 
   function clearAuth() {
     setAccessToken('')
     setRefreshToken('')
     setUserInfo(null)
-    setDocumentId(null)
-    setSource(null)
+    setDocuments([])
+    setSelectedDocIds([])
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('auth_user')
@@ -171,6 +195,7 @@ function App() {
 
   useEffect(() => {
     if (!isAuthed) return
+    loadDocuments()
     if (suppressAutoLoadRef.current) {
       suppressAutoLoadRef.current = false
       return
@@ -189,7 +214,7 @@ function App() {
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: defaultAssistantMessage('document', null),
+            content: defaultAssistantMessage('document', 0),
           },
         ])
         return
@@ -264,15 +289,20 @@ function App() {
     setIsBusy(true)
     try {
       suppressAutoLoadRef.current = true
+      let docCount = 0
       if (session.mode === 'basic') {
         setAskMode('basic')
+        setSelectedDocIds([])
       } else {
         setAskMode('document')
-        if (session.document_id) {
-          persistDocumentSelection({ id: session.document_id, source: 'Restored from conversation' })
+        if (session.document_ids) {
+          setSelectedDocIds(session.document_ids)
+          docCount = session.document_ids.length
+        } else if (session.document_id) {
+          setSelectedDocIds([session.document_id])
+          docCount = 1
         } else {
-          setDocumentId(null)
-          setSource(null)
+          setSelectedDocIds([])
         }
       }
 
@@ -280,6 +310,12 @@ function App() {
       const historyRes = await apiFetch(`/chat/history/${session.id}`)
       const { json: historyJson, text } = await readJsonOrText(historyRes)
       if (!historyRes.ok) throw new Error(historyJson?.detail || text || 'Failed to load chat history')
+
+      const historyDocIds = historyJson?.session?.document_ids
+      if (Array.isArray(historyDocIds) && historyDocIds.length > 0) {
+        setSelectedDocIds(historyDocIds)
+        docCount = historyDocIds.length
+      }
 
       const mapped = mapHistoryToMessages(historyJson?.messages)
       setMessages(
@@ -289,7 +325,7 @@ function App() {
               {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: defaultAssistantMessage(session.mode, session.document_id),
+                content: defaultAssistantMessage(session.mode, docCount),
               },
             ],
       )
@@ -342,7 +378,7 @@ function App() {
 
         if (wasActive) {
           setSessionId(null)
-          await loadLatestSession(askMode, documentId)
+          await loadLatestSession(askMode, selectedDocIds.length)
         }
         return
       }
@@ -357,7 +393,7 @@ function App() {
     }
   }
 
-  async function loadLatestSession(nextMode, nextDocumentId) {
+  async function loadLatestSession(nextMode, selectedDocsCount) {
     try {
       const sessions = await loadSessionList()
       const latest = sessions?.[0]
@@ -367,7 +403,7 @@ function App() {
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: defaultAssistantMessage(nextMode, nextDocumentId),
+            content: defaultAssistantMessage(nextMode, selectedDocsCount),
           },
         ])
         return
@@ -380,7 +416,7 @@ function App() {
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: defaultAssistantMessage(nextMode, nextDocumentId),
+          content: defaultAssistantMessage(nextMode, selectedDocsCount),
         },
       ])
     }
@@ -396,7 +432,7 @@ function App() {
       {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: defaultAssistantMessage(nextMode, documentId),
+        content: defaultAssistantMessage(nextMode, selectedDocIds.length),
       },
     ])
   }
@@ -404,10 +440,11 @@ function App() {
   async function startNewChat() {
     setError('')
     setStatus('')
-    setDocumentId(null)
-    setSource(null)
     try {
-      const payload = { mode: askMode === 'document' ? 'document' : 'basic' }
+      const payload = {
+        mode: askMode === 'document' ? 'document' : 'basic',
+        document_ids: askMode === 'document' ? selectedDocIds : [],
+      }
       const res = await apiFetch('/chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -420,7 +457,7 @@ function App() {
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: defaultAssistantMessage(askMode, null),
+          content: defaultAssistantMessage(askMode, selectedDocIds.length),
         },
       ])
       await loadSessionList()
@@ -483,16 +520,12 @@ function App() {
       })
       const { json, text } = await readJsonOrText(authRes)
       if (!authRes.ok) throw new Error(json?.detail || text || `Failed to ingest URL (HTTP ${authRes.status}).`)
-      persistDocumentSelection({ id: json.document_id, source: json.source })
-      setSessionId(null)
-      setMessages([
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: defaultAssistantMessage('document', json.document_id),
-        },
-      ])
-      setStatus(`Ingested: ${json.source} (${json.chunk_count} chunks)`)
+      setUrl('')
+      setStatus(`Ingested URL successfully!`)
+      await loadDocuments()
+      if (json.document_id) {
+        setSelectedDocIds((prev) => Array.from(new Set([...prev, json.document_id])))
+      }
     } catch (e) {
       setError(e.message || String(e))
     } finally {
@@ -503,28 +536,32 @@ function App() {
   async function ingestFile() {
     setError('')
     setStatus('')
-    if (!file) {
-      setError('Please choose a file.')
+    if (files.length === 0) {
+      setError('Please choose one or more files.')
+      return
+    }
+    if (files.length > 5) {
+      setError('You can upload at most 5 files at a time.')
       return
     }
     setIsBusy(true)
-    setStatus('Uploading and ingesting file…')
+    setStatus('Uploading and ingesting files…')
     try {
       const form = new FormData()
-      form.append('file', file)
+      for (const f of files) {
+        form.append('files', f)
+      }
       const res = await apiFetch('/ingest/file', { method: 'POST', body: form })
       const { json, text } = await readJsonOrText(res)
       if (!res.ok) throw new Error(json?.detail || text || `Failed to ingest file (HTTP ${res.status}).`)
-      persistDocumentSelection({ id: json.document_id, source: json.source })
-      setSessionId(null)
-      setMessages([
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: defaultAssistantMessage('document', json.document_id),
-        },
-      ])
-      setStatus(`Ingested: ${json.source} (${json.chunk_count} chunks)`)
+
+      const results = json.results || []
+      setStatus(`Ingested ${results.length} file(s) successfully.`)
+      setFiles([])
+      await loadDocuments()
+
+      const newIds = results.map((r) => r.document_id).filter(Boolean)
+      setSelectedDocIds((prev) => Array.from(new Set([...prev, ...newIds])))
     } catch (e) {
       setError(e.message || String(e))
     } finally {
@@ -534,8 +571,8 @@ function App() {
 
   async function sendQuestion() {
     const q = question.trim()
-    if (askMode === 'document' && !documentId) {
-      setError('Ingest something first (file or URL).')
+    if (askMode === 'document' && selectedDocIds.length === 0) {
+      setError('Please select at least one document.')
       return
     }
     if (!q) return
@@ -552,7 +589,7 @@ function App() {
       const endpoint = askMode === 'document' ? '/ask' : '/chat/basic'
       const payload =
         askMode === 'document'
-          ? { document_id: documentId, question: q, top_k: 10, session_id: sessionId }
+          ? { document_ids: selectedDocIds, question: q, top_k: 10, session_id: sessionId }
           : { message: q, session_id: sessionId }
 
       const authRes = await apiFetch(endpoint, {
@@ -694,7 +731,7 @@ function App() {
             </div>
             <p className="modeHint">
               {askMode === 'document'
-                ? 'Answers are retrieved only from your ingested document.'
+                ? 'Answers are retrieved only from your selected document(s).'
                 : 'Use this for general chat questions.'}
             </p>
           </div>
@@ -703,15 +740,29 @@ function App() {
             <div className="cardTitle">Ingest</div>
 
             <div className="field">
-              <label>Upload file (PDF/TXT/CSV)</label>
+              <label>Upload files (PDF/TXT/CSV, max 5)</label>
               <input
                 type="file"
                 accept=".pdf,.txt,.csv"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                multiple
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files || []).slice(0, 5)
+                  setFiles(selected)
+                  if ((e.target.files || []).length > 5) {
+                    setError('You can upload at most 5 files at a time.')
+                  }
+                }}
                 disabled={isBusy}
               />
-              <button className="btn" onClick={ingestFile} disabled={isBusy || !file}>
-                Ingest file
+              {files.length > 0 ? (
+                <ul className="fileList">
+                  {files.map((f) => (
+                    <li key={`${f.name}-${f.size}-${f.lastModified}`}>{f.name}</li>
+                  ))}
+                </ul>
+              ) : null}
+              <button className="btn" onClick={ingestFile} disabled={isBusy || files.length === 0}>
+                Ingest files {files.length > 0 ? `(${files.length})` : ''}
               </button>
             </div>
 
@@ -733,20 +784,67 @@ function App() {
           </div>
 
           <div className="card">
-            <div className="cardTitle">Active document</div>
-            <div className="kv">
-              <div className="k">document_id</div>
-              <div className="v mono">{documentId || '—'}</div>
-            </div>
-            <div className="kv">
-              <div className="k">source</div>
-              <div className="v">{source || '—'}</div>
-            </div>
-            {documentId ? (
-              <div className="note ok">This document is loaded from your saved uploads and does not need to be ingested again.</div>
-            ) : null}
-            {status ? <div className="note ok">{status}</div> : null}
-            {error ? <div className="note err">{error}</div> : null}
+            <div className="cardTitle">Your Documents</div>
+            {documents.length === 0 ? (
+              <div className="note">No documents ingested yet. Upload files or enter a URL above.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                {documents.map((doc) => {
+                  const isSelected = selectedDocIds.includes(doc.id);
+                  return (
+                    <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={askMode !== 'document'}
+                          onChange={() => {
+                            if (isSelected) {
+                              setSelectedDocIds((prev) => prev.filter((id) => id !== doc.id))
+                            } else {
+                              setSelectedDocIds((prev) => [...prev, doc.id])
+                            }
+                          }}
+                        />
+                        <span title={doc.title || doc.source} style={{ opacity: askMode === 'document' ? 1 : 0.6 }}>
+                          {doc.title || doc.source}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => deleteDocument(doc.id)}
+                        style={{ background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', padding: '2px 4px', fontSize: '12px' }}
+                        title="Delete document"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {askMode === 'document' && documents.length > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}
+                  onClick={() => setSelectedDocIds(documents.map(d => d.id))}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: '4px 8px', fontSize: '11px', flex: 1 }}
+                  onClick={() => setSelectedDocIds([])}
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
+            {status ? <div className="note ok" style={{ marginTop: '10px' }}>{status}</div> : null}
+            {error ? <div className="note err" style={{ marginTop: '10px' }}>{error}</div> : null}
           </div>
         </div>
       </aside>
@@ -756,9 +854,9 @@ function App() {
           <div className="chatTitle">Chat Workspace</div>
           <div className="chatHint">
             {askMode === 'document'
-              ? documentId
-                ? 'Document mode is on: answers come only from your ingested source.'
-                : 'Ingest a file or URL, then ask from PDF/Text.'
+              ? selectedDocIds.length > 0
+                ? `Document mode is on: querying across ${selectedDocIds.length} selected document(s).`
+                : 'Document mode is on. Select document(s) in the sidebar to ask questions.'
               : 'Basic chat mode is on: ask general questions.'}
           </div>
         </header>
@@ -774,17 +872,24 @@ function App() {
                   <div className="sources">
                     <div className="sourcesTitle">Sources</div>
                     <ol className="sourcesList">
-                      {m.sources.map((s, idx) => (
-                        <li key={s.chunk_id || idx} className="sourceItem">
-                          <div className="sourceTop">
-                            <span className="pill">{s.source || 'unknown source'}</span>
-                            {s.page_number !== null && s.page_number !== undefined ? (
-                              <span className="pill">page {s.page_number}</span>
-                            ) : null}
-                          </div>
-                          <div className="sourceText mono">{String(s.text || '').slice(0, 260)}{String(s.text || '').length > 260 ? '…' : ''}</div>
-                        </li>
-                      ))}
+                      {m.sources.map((s, idx) => {
+                        const pageLabel =
+                          s.page_number !== null && s.page_number !== undefined
+                            ? ` (Page ${s.page_number})`
+                            : ''
+                        const label = `[${idx + 1}] ${s.source || 'unknown'}${pageLabel}`
+                        return (
+                          <li key={s.chunk_id || idx} className="sourceItem">
+                            <div className="sourceTop">
+                              <span className="pill">{label}</span>
+                            </div>
+                            <div className="sourceText mono">
+                              {String(s.text || '').slice(0, 260)}
+                              {String(s.text || '').length > 260 ? '…' : ''}
+                            </div>
+                          </li>
+                        )
+                      })}
                     </ol>
                   </div>
                 ) : null}
@@ -807,9 +912,9 @@ function App() {
             className="input"
             placeholder={
               askMode === 'document'
-                ? documentId
-                  ? 'Ask from your ingested document…'
-                  : 'Ingest something first…'
+                ? selectedDocIds.length > 0
+                  ? 'Ask from your selected document(s)…'
+                  : 'Select document(s) in the sidebar first…'
                 : 'Say hi or hello…'
             }
             value={question}

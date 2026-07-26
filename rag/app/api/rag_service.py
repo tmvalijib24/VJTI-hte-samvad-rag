@@ -1,3 +1,4 @@
+import os
 import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -54,7 +55,7 @@ def answer_basic_message(message: str, chat_history: List[Dict[str, str]] | None
     return generator.generate_basic(prompt, chat_history=chat_history)
 
 
-def ingest_and_index(user_id: str, source: str) -> IngestResult:
+def ingest_and_index(user_id: str, source: str, title: str | None = None) -> IngestResult:
     """
     Ingest a local file path or URL, chunk it, embed it,
     store chunks in Postgres and vectors in Qdrant.
@@ -73,7 +74,7 @@ def ingest_and_index(user_id: str, source: str) -> IngestResult:
     store.create_collection()
 
     pg = PostgresStore()
-    doc_row = pg.get_or_create_document(user_id=user_uuid, source=source)
+    doc_row = pg.get_or_create_document(user_id=user_uuid, source=source, title=title)
 
     chunk_rows = pg.replace_chunks(
         user_id=user_uuid,
@@ -89,13 +90,14 @@ def ingest_and_index(user_id: str, source: str) -> IngestResult:
         ],
     )
 
+    display_source = doc_row.title or os.path.basename(doc_row.source) or doc_row.source
     payloads = [
         {
             "chunk_id": str(row.id),
             "document_id": str(row.document_id),
             "chunk_index": row.chunk_index,
             "page_number": row.page_number,
-            "source": doc_row.source,
+            "source": display_source,
         }
         for row in chunk_rows
     ]
@@ -114,26 +116,43 @@ def ingest_and_index(user_id: str, source: str) -> IngestResult:
 def answer_question(
     *,
     user_id: str,
-    document_id: str,
+    document_id: str | None = None,
+    document_ids: List[str] | str | None = None,
     question: str,
     top_k: int = 5,
     chat_history: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
     """
-    Run retrieval + generation for a single document.
+    Run retrieval + generation for one or more documents.
     Returns answer + sources suitable for UI citations.
     All queries are scoped to the current user (tenant).
     """
     user_uuid = uuid.UUID(user_id)
-    doc_uuid = uuid.UUID(document_id)
+    
+    # Parse document IDs
+    doc_uuids: List[uuid.UUID] = []
+    if document_ids:
+        if isinstance(document_ids, str):
+            doc_uuids = [uuid.UUID(document_ids)]
+        else:
+            doc_uuids = [uuid.UUID(d) for d in document_ids if d]
+    elif document_id:
+        doc_uuids = [uuid.UUID(document_id)]
 
     embedder = Embedder()
     store = QdrantStore()
     pg = PostgresStore()
 
-    chunk_rows = pg.fetch_all_chunks(user_id=user_uuid, document_id=doc_uuid)
+    if doc_uuids:
+        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids)
+    else:
+        # Default to searching all user's documents if none specified
+        docs = pg.list_documents(user_id=user_uuid)
+        doc_uuids = [d.id for d in docs]
+        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids)
+
     if not chunk_rows:
-        raise RuntimeError("No chunks found for this document_id. Ingest first.")
+        raise RuntimeError("No chunks found. Ingest document(s) first.")
 
     bm25_chunks = [{"chunk_id": str(r.id), "text": r.text, "page_number": r.page_number} for r in chunk_rows]
     bm25 = BM25Retriever(bm25_chunks)
@@ -144,11 +163,17 @@ def answer_question(
     hyde = HyDEExpander()
     expanded_query = hyde.expand(question)
 
-    # Pass tenant_id to hybrid search for multi-tenant isolation in Qdrant
-    results = hybrid.search(expanded_query, tenant_id=str(user_uuid))
+    # Pass tenant_id and document list to hybrid search for multi-tenant and multi-document filtering
+    results = hybrid.search(expanded_query, tenant_id=str(user_uuid), document_ids=doc_uuids)
 
-    # Fill missing text/page using Postgres rows
+    # Fill missing text/page using Postgres rows and resolve document display names
     id_to_row = {str(r.id): r for r in chunk_rows}
+    docs = pg.get_documents_by_ids(user_id=user_uuid, document_ids=doc_uuids)
+    doc_by_id = {
+        str(d.id): (d.title or os.path.basename(d.source) or d.source)
+        for d in docs
+    }
+
     for r in results:
         cid = r.get("chunk_id")
         if cid and (not r.get("text")):
@@ -165,24 +190,33 @@ def answer_question(
     reranked = reranker.rerank(question, results)
     selected = reranked[: max(1, int(top_k))]
 
-    sources = [
-        {
-            "chunk_id": r.get("chunk_id"),
-            "score": _json_number(r.get("score")),
-            "rerank_score": _json_number(r.get("rerank_score")),
-            "page_number": r.get("page_number"),
-            "source": (id_to_row.get(r.get("chunk_id", "")).meta.get("source") if r.get("chunk_id") in id_to_row else None),
-            "text": r.get("text"),
-        }
-        for r in selected
-    ]
+    sources = []
+    for r in selected:
+        cid = r.get("chunk_id")
+        row = id_to_row.get(cid or "")
+        display_source = None
+        if row:
+            display_source = doc_by_id.get(str(row.document_id))
+        if not display_source:
+            display_source = (row.meta.get("source") if row and row.meta else None) or "unknown"
+        sources.append(
+            {
+                "chunk_id": cid,
+                "document_id": str(row.document_id) if row else None,
+                "score": _json_number(r.get("score")),
+                "rerank_score": _json_number(r.get("rerank_score")),
+                "page_number": r.get("page_number"),
+                "source": display_source,
+                "text": r.get("text"),
+            }
+        )
 
     # Provide the generator with labeled context blocks so it can cite them as [1], [2], ...
     context_blocks: List[str] = []
     for i, s in enumerate(sources, start=1):
         src = s.get("source") or "unknown"
         page = s.get("page_number")
-        header = f"[{i}] source={src}" + (f" page={page}" if page is not None else "")
+        header = f"[{i}] {src}" + (f" (Page {page})" if page is not None else "")
         context_blocks.append(f"{header}\n{s.get('text') or ''}".strip())
 
     answer = generator.generate(question, context_blocks, chat_history=chat_history)
