@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -5,6 +7,16 @@ import os
 import shutil
 import uuid
 from typing import Optional, List
+
+from app.ocr.ocr_service import IMAGE_EXTENSIONS
+
+logger = logging.getLogger(__name__)
+
+# Configure root logger so our messages are visible on the console
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 from app.auth.security import (
     ACCESS_TOKEN_MINUTES,
@@ -190,8 +202,13 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
     for file in files:
         filename = file.filename or ""
         _, ext = os.path.splitext(filename.lower())
-        if ext not in {".pdf", ".txt", ".csv"}:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type for {filename}. Use PDF, TXT, or CSV.")
+        allowed_extensions = {".pdf", ".txt", ".csv"} | IMAGE_EXTENSIONS
+        if ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type for {filename}. "
+                       f"Supported: PDF, TXT, CSV, or images ({', '.join(sorted(IMAGE_EXTENSIONS))}).",
+            )
 
         os.makedirs("storage/uploads", exist_ok=True)
         saved_path = os.path.join("storage", "uploads", f"{uuid.uuid4().hex}{ext}")
@@ -208,7 +225,12 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
                 pass
 
         try:
+            logger.info("Ingesting uploaded file: %s (ext=%s)", filename, ext)
             res = ingest_and_index(str(user.id), saved_path, title=filename)
+            logger.info(
+                "Ingestion complete for %s — doc_id=%s, chunks=%d",
+                filename, res.document_id, res.chunk_count,
+            )
             results.append({
                 "document_id": res.document_id,
                 "source": filename,
@@ -216,6 +238,7 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
                 "chunk_count": res.chunk_count,
             })
         except Exception as e:
+            logger.error("Ingestion failed for %s: %s", filename, e)
             raise HTTPException(status_code=400, detail=f"Failed to ingest file {filename}: {str(e)}") from e
 
     return {"results": results}
