@@ -556,7 +556,12 @@ function App() {
       if (!res.ok) throw new Error(json?.detail || text || `Failed to ingest file (HTTP ${res.status}).`)
 
       const results = json.results || []
-      setStatus(`Ingested ${results.length} file(s) successfully.`)
+      const isProcessing = json.status === 'processing' || results.some((r) => r?.status === 'processing')
+      setStatus(
+        isProcessing
+          ? `Upload accepted. Ingestion started for ${results.length} file(s).`
+          : `Ingested ${results.length} file(s) successfully.`
+      )
       setFiles([])
       await loadDocuments()
 

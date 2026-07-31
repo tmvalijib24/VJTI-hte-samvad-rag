@@ -1,7 +1,17 @@
 import logging
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Request
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    Request,
+)
+
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 import os
 import shutil
@@ -186,9 +196,31 @@ def ingest_url(req: IngestUrlRequest, request: Request, user: User = Depends(get
 MAX_BULK_UPLOAD_FILES = 5
 
 
+async def _save_upload_file(upload_file: UploadFile, destination: str) -> None:
+    chunk_size = 1024 * 1024
+    with open(destination, "wb") as out_file:
+        while True:
+            chunk = await upload_file.read(chunk_size)
+            if not chunk:
+                break
+            out_file.write(chunk)
+
+
+def _process_ingest_file(user_id: str, saved_path: str, title: str) -> None:
+    try:
+        ingest_and_index(user_id, saved_path, title=title)
+    except Exception as e:
+        print(f"Background ingest failed for {title}: {e}")
+
+
 @app.post("/ingest/file")
 @limiter.limit(RATE_LIMIT_INGEST)
-async def ingest_file(request: Request, files: List[UploadFile] = File(...), user: User = Depends(get_current_user)):
+async def ingest_file(
+    background_tasks: BackgroundTasks,
+    request: Request,
+    files: List[UploadFile] = File(...),
+    user: User = Depends(get_current_user),
+):
     """Ingest one or more documents from file upload with multi-tenant isolation and rate limiting."""
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
@@ -199,6 +231,7 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
         )
 
     results = []
+    pg = PostgresStore()
     for file in files:
         filename = file.filename or ""
         _, ext = os.path.splitext(filename.lower())
@@ -214,8 +247,7 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
         saved_path = os.path.join("storage", "uploads", f"{uuid.uuid4().hex}{ext}")
 
         try:
-            with open(saved_path, "wb") as f:
-                shutil.copyfileobj(file.file, f)
+            await _save_upload_file(file, saved_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to save uploaded file {filename}.") from e
         finally:
@@ -224,24 +256,46 @@ async def ingest_file(request: Request, files: List[UploadFile] = File(...), use
             except Exception:
                 pass
 
-        try:
-            logger.info("Ingesting uploaded file: %s (ext=%s)", filename, ext)
-            res = ingest_and_index(str(user.id), saved_path, title=filename)
-            logger.info(
-                "Ingestion complete for %s — doc_id=%s, chunks=%d",
-                filename, res.document_id, res.chunk_count,
-            )
-            results.append({
-                "document_id": res.document_id,
-                "source": filename,
-                "raw_count": res.raw_count,
-                "chunk_count": res.chunk_count,
-            })
-        except Exception as e:
-            logger.error("Ingestion failed for %s: %s", filename, e)
-            raise HTTPException(status_code=400, detail=f"Failed to ingest file {filename}: {str(e)}") from e
+            try:
+                logger.info("Received uploaded file: %s (ext=%s)", filename, ext)
 
-    return {"results": results}
+                # Create the document row immediately so the UI gets an ID.
+                doc_row = pg.get_or_create_document(
+                    user_id=user.id,
+                    source=saved_path,
+                    title=filename,
+                )
+
+                # OCR + multilingual ingestion happens in the background.
+                background_tasks.add_task(
+                    _process_ingest_file,
+                    str(user.id),
+                    saved_path,
+                    filename,
+                )
+
+                logger.info(
+                    "Queued background ingestion for %s (document_id=%s)",
+                    filename,
+                    doc_row.id,
+                )
+
+                results.append(
+                    {
+                        "document_id": str(doc_row.id),
+                        "source": filename,
+                        "status": "processing",
+                    }
+                )
+
+            except Exception as e:
+                logger.error("Ingestion failed for %s: %s", filename, e)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to ingest file {filename}: {str(e)}",
+                ) from e
+
+    return {"results": results, "status": "processing"}
 
 
 @app.get("/documents")
