@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.hyde import HyDEExpander
 from app.retrieval.reranker import Reranker
 from app.vectorstore.qdrant_store import QdrantStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -63,12 +66,17 @@ def ingest_and_index(user_id: str, source: str, title: str | None = None) -> Ing
     """
     user_uuid = uuid.UUID(user_id)
     
+    logger.info("Starting ingestion for user=%s source=%s", user_id, source)
+
     pipeline = IngestionPipeline()
     docs, raw_count = pipeline.ingest_with_stats(source)
     texts = [d.page_content for d in docs]
+    logger.info("Ingestion produced %d chunk(s), raw_count=%d", len(docs), raw_count)
 
     embedder = Embedder()
+    logger.info("Generating embeddings for %d text(s) …", len(texts))
     vectors = embedder.embed_texts(texts)
+    logger.info("Embeddings generated successfully")
 
     store = QdrantStore()
     store.create_collection()
@@ -103,7 +111,9 @@ def ingest_and_index(user_id: str, source: str, title: str | None = None) -> Ing
     ]
     ids = [str(row.id) for row in chunk_rows]
     # Pass tenant_id (user_id) to upload - it will be added to every payload
+    logger.info("Uploading %d vector(s) to Qdrant for tenant=%s …", len(vectors), user_uuid)
     store.upload(vectors=vectors, payloads=payloads, ids=ids, tenant_id=str(user_uuid))
+    logger.info("Vectors stored successfully in Qdrant")
 
     return IngestResult(
         document_id=str(doc_row.id),

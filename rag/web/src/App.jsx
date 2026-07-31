@@ -740,10 +740,10 @@ function App() {
             <div className="cardTitle">Ingest</div>
 
             <div className="field">
-              <label>Upload files (PDF/TXT/CSV, max 5)</label>
+              <label>Upload files (PDF, TXT, CSV, or Images — max 5)</label>
               <input
                 type="file"
-                accept=".pdf,.txt,.csv"
+                accept=".pdf,.txt,.csv,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff"
                 multiple
                 onChange={(e) => {
                   const selected = Array.from(e.target.files || []).slice(0, 5)

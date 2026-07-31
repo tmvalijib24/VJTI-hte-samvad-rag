@@ -1,3 +1,5 @@
+import logging
+
 import fitz
 import pandas as pd
 import requests
@@ -5,8 +7,24 @@ from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from typing import List
 
+from app.ocr.ocr_service import extract_text as ocr_extract_text
+
+logger = logging.getLogger(__name__)
+
 
 class DocumentLoader:
+
+    def load_image(self, path: str) -> List[Document]:
+        """Run OCR on an image file and return the extracted text as Document(s)."""
+        logger.info("Loading image via OCR: %s", path)
+        text = ocr_extract_text(path)
+        logger.info("OCR extracted %d characters from %s", len(text), path)
+        return [
+            Document(
+                page_content=text,
+                metadata={"source": path, "source_type": "image"},
+            )
+        ]
 
     def load_pdf(self, path: str) -> List[Document]:
         docs = []

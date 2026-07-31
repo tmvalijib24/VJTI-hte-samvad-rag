@@ -23,3 +23,6 @@ langchain-text-splitters
 
 # LLM client used in generation/HyDE
 groq
+
+# OCR for image ingestion (paddlex/paddlepaddle pulled in transitively)
+paddleocr

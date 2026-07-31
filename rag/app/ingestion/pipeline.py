@@ -1,7 +1,20 @@
+import logging
+import os
 from typing import List, Tuple
+
 from langchain_core.documents import Document
+
 from app.ingestion.loader import DocumentLoader
 from app.ingestion.chunking import Chunker
+from app.ocr.ocr_service import IMAGE_EXTENSIONS
+
+logger = logging.getLogger(__name__)
+
+
+def _has_image_ext(path: str) -> bool:
+    """Return True when *path* ends with a recognised image extension."""
+    _, ext = os.path.splitext(path.lower())
+    return ext in IMAGE_EXTENSIONS
 
 
 class IngestionPipeline:
@@ -25,11 +38,16 @@ class IngestionPipeline:
         elif path.endswith(".csv"):
             docs = self.loader.load_csv(path)
 
+        elif _has_image_ext(path):
+            logger.info("Image file detected — routing through OCR: %s", path)
+            docs = self.loader.load_image(path)
+
         else:
             raise ValueError("Unsupported file type")
 
         # Apply chunking
         chunks = self.chunker.chunk(docs)
+        logger.info("Chunking complete — %d chunk(s) produced from %s", len(chunks), path)
 
         return chunks
 
@@ -54,8 +72,14 @@ class IngestionPipeline:
             docs = self.loader.load_csv(path)
             raw_count = len(docs)
 
+        elif _has_image_ext(path):
+            logger.info("Image file detected — routing through OCR: %s", path)
+            docs = self.loader.load_image(path)
+            raw_count = 1
+
         else:
             raise ValueError("Unsupported file type")
 
         chunks = self.chunker.chunk(docs)
-        return chunks, raw_count
+        logger.info("Chunking complete — %d chunk(s) from %s", len(chunks), path)
+        return chunks, raw_count
