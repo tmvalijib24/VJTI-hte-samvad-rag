@@ -2,9 +2,14 @@
 __pycache__/
 *.py[codz]
 *$py.class
+.fastembed_cache/
 
 # C extensions
 *.so
+.embedding_cache/
+.fastembed_cache/
+
+storage/uploads/
 
 # Distribution / packaging
 .Python
