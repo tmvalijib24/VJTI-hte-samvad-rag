@@ -200,6 +200,32 @@ def answer_question(
     reranked = reranker.rerank(question, results)
     selected = reranked[: max(1, int(top_k))]
 
+    print("\n========== RETRIEVAL ==========")
+    print("Question:", question)
+
+    for i, r in enumerate(selected, start=1):
+        print(
+            f"{i}. score={r.get('score')} "
+            f"rerank={r.get('rerank_score')} "
+            f"source={r.get('source')} "
+            f"text={(r.get('text') or '')[:150]}"
+        )
+
+    print("==============================\n")
+
+# Reject weak retrievals
+    MIN_SCORE = 0.35
+
+    if (
+            not selected
+            or selected[0].get("score") is None
+            or float(selected[0]["score"]) < MIN_SCORE
+    ):
+            return {
+                "answer": "I couldn't find the answer in the selected document(s).",
+                "sources": []
+            }
+    
     sources = []
     for r in selected:
         cid = r.get("chunk_id")

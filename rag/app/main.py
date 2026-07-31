@@ -388,6 +388,13 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
         else:
             doc_uuids = pg.get_session_document_ids(session_id=session_row.id)
 
+        print("\n===== ASK REQUEST =====")
+        print("Requested document_ids:", req.document_ids)
+        print("Requested document_id:", req.document_id)
+        print("Session ID:", req.session_id)
+        print("Final document UUIDs:", doc_uuids)
+        print("=======================\n")
+        
         result = answer_question(
             user_id=str(user.id),
             document_ids=[str(d) for d in doc_uuids],
