@@ -73,68 +73,254 @@ graph TD
 
 ---
 
-## 🧰 Tech Stack
+# 🏛️ HTE-Samvad RAG Engine
 
-| Category | Technology | Purpose |
-|---|---|---|
-| **Backend** | FastAPI, SQLAlchemy, Pydantic, Python 3.10+ | API orchestration, ORM, request/response validation |
-| **Frontend** | React (Vite), Tailwind CSS | Chat workspace UI with citation rendering |
-| **Vector Storage** | Qdrant | ANN vector search over chunk embeddings (HNSW index) |
-| **Relational DB** | PostgreSQL (Supabase Postgres supported) | Document/chunk metadata, chat sessions, audit trail |
-| **Embeddings** | sentence-transformers (`all-MiniLM-L6-v2`) | Converts text to dense semantic vectors |
-| **Retrieval** | BM25 + Dense Vector + HyDE + RRF + Cross-Encoder | Hybrid recall with precision reranking |
-| **LLM** | Groq (`llama-3.1-8b-instant`, `gpt-oss-20b`) | Grounded answer generation & basic chat |
-| **Evaluation** | RAGAs | Faithfulness, Answer Relevancy, Context Recall metrics |
+### *Instant, Reliable & Grounded Access to Official Administrative Knowledge*
+
+**AI-powered question answering system for the HTE Department** built for the VJTI Mumbai Government Hackathon.
+
+<p>
+  <img src="https://camo.githubusercontent.com/629436a6802e7ac32a847d0887585634ccf768c75901f1bb547bba090e528df/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f707974686f6e2d332e31302532422d626c75653f6c6f676f3d707974686f6e266c6f676f436f6c6f723d7768697465" alt="Python 3.10+">
+  <img src="https://camo.githubusercontent.com/d1b96a79e5af4cdc992f282f835f51c5f93deb27ae407839cf62857a71c45aa7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f466173744150492d6261636b656e642d3030393638383f6c6f676f3d66617374617069266c6f676f436f6c6f723d7768697465" alt="FastAPI">
+  <img src="https://camo.githubusercontent.com/af959aded4e6a0039a2049bb7d263a9b0165f44ec7cf3cbb818a48fc580e18af/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f52656163742d566974652d3631444146423f6c6f676f3d7265616374266c6f676f436f6c6f723d7768697465" alt="React + Vite">
+  <img src="https://camo.githubusercontent.com/ee267b05d1c512c971777685f7c0ddd383359d8d4698d2706f19274be73b691e/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f566563746f7244422d516472616e742d4443323434433f6c6f676f3d716472616e74266c6f676f436f6c6f723d7768697465" alt="Qdrant">
+  <img src="https://camo.githubusercontent.com/35d640dc6ef347f2f94c70f5da11333aebf6f5d43fa50a9e112b24ea19b06567/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f44422d506f737467726553514c2d3431363945313f6c6f676f3d706f737467726573716c266c6f676f436f6c6f723d7768697465" alt="PostgreSQL">
+  <img src="https://camo.githubusercontent.com/86a6ced842d126ee99bf7f1ef0d99c41d5959dc8cc05cc9235321da05f134ea7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f4c4c4d2d47726f712d4635353033363f6c6f676f3d67726f71266c6f676f436f6c6f723d7768697465" alt="Groq">
+  <img src="https://camo.githubusercontent.com/7ee63b2904dc2af8a83b22a0df53d3495728d2002a439fb9b5f647bfeefb902c/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6576616c2d52414741732d384132424532" alt="RAGAs">
+  <img src="https://camo.githubusercontent.com/f8df3091bbe1149f398a5369b2c39e896766f9f6efba3477c63e9b4aa940ef14/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d677265656e" alt="License: MIT">
+</p>
 
 ---
 
-## 🚀 Quickstart & Setup Guide
+## What This Project Does
 
-### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL database (or Supabase Postgres)
-- Qdrant server
-- Groq API key
+HTE-Samvad is a retrieval-augmented generation system for official, administrative, and policy documents. It lets users upload documents or ingest a URL, then ask natural-language questions and receive answers that are grounded in the ingested source material.
 
-### 1. Python Environment Setup
+The backend splits documents into chunks, generates embeddings, stores structured metadata in PostgreSQL, stores vectors in Qdrant, and then uses hybrid retrieval plus reranking to find the best evidence before generating a response with Groq. The frontend provides an authenticated chat workspace for uploading documents, browsing them, starting chat sessions, and switching between document-grounded Q&A and general chat.
+
+In short, this project helps departments turn long, scattered official content into a searchable and citeable knowledge base.
+
+---
+
+## Core Capabilities
+
+- Upload PDFs, text files, CSVs, and supported image files for OCR-based ingestion.
+- Ingest content directly from a URL.
+- Ask questions against one or more selected documents.
+- Get source-backed responses with document and chunk metadata.
+- Use a separate basic chat mode for general conversations without document retrieval.
+- Create, rename, list, and delete chat sessions.
+- Persist document, chat, and user state in a multi-tenant backend.
+- Rate limit authentication and RAG endpoints to protect the service from abuse.
+- Evaluate retrieval quality with RAGAs.
+
+---
+
+## How It Works
+
+### Ingestion Flow
+
+```mermaid
+graph TD
+    A["Source input\nPDF / TXT / CSV / Image / URL"] --> B["Loader + OCR fallback"]
+    B --> C["Chunking pipeline"]
+    C --> D["Embeddings"]
+    D --> E[("PostgreSQL\nDocuments, chunks, sessions")]
+    D --> F[("Qdrant\nVectors + tenant payloads")]
+    E --> G["Ready for retrieval"]
+    F --> G
+```
+
+### Question Answering Flow
+
+```mermaid
+graph TD
+    Q["User question"] --> H["HyDE query expansion"]
+    H --> D1["Dense search in Qdrant"]
+    Q --> S1["Sparse BM25 search"]
+    D1 --> M["Hybrid merge / fusion"]
+    S1 --> M
+    M --> R["Cross-encoder reranking"]
+    R --> K["Top-k evidence chunks"]
+    K --> P["Prompt assembly"]
+    P --> L["Groq LLM generation"]
+    L --> A["Grounded answer + sources"]
+```
+
+The main retrieval path is built to reduce hallucinations. The system first expands the query with HyDE, then combines dense vector search with BM25 keyword search, then reranks the candidate chunks before passing only the best context to the LLM.
+
+---
+
+## Tech Stack
+
+| Area | Technology | Role |
+|---|---|---|
+| Backend | FastAPI, Pydantic | API layer, validation, request handling |
+| Auth | JWT-based auth helpers | Register, login, refresh, current-user lookup |
+| Storage | PostgreSQL | Users, documents, chunks, sessions, message history |
+| Vector Search | Qdrant | Semantic retrieval over chunk embeddings |
+| Retrieval | BM25, HyDE, hybrid fusion, reranking | Candidate generation and precision ranking |
+| LLM | Groq | Document-grounded and basic chat generation |
+| Embeddings | sentence-transformers | Dense vector generation for chunks and queries |
+| OCR / Ingestion | File loader + OCR service | Handle scanned and image-based inputs |
+| Frontend | React + Vite | Authenticated chat and document workflow UI |
+| Evaluation | RAGAs | Retrieval quality and answer quality checks |
+
+---
+
+## Repository Layout
+
+The application code lives in the `rag/` folder.
+
+```text
+rag/
+├── app/                # FastAPI backend
+│   ├── api/            # RAG orchestration and chat logic
+│   ├── auth/           # JWT and password helpers
+│   ├── core/           # Config, logging, rate limiting
+│   ├── db/             # PostgreSQL and Qdrant access layers
+│   ├── embeddings/     # Embedding generation
+│   ├── evaluation/     # RAGAs dataset and evaluation runner
+│   ├── generation/     # Groq prompt and answer generation
+│   ├── ingestion/      # Loading, chunking, pipeline orchestration
+│   ├── ocr/            # OCR helpers for image/scanned inputs
+│   ├── retrieval/      # BM25, hybrid retrieval, HyDE, reranking
+│   └── vectorstore/    # Qdrant collection and vector operations
+├── scripts/            # Ingestion, querying, and migration scripts
+├── storage/uploads/    # Temporary uploaded files
+└── web/                # React + Vite frontend
+```
+
+---
+
+## Key User Flows
+
+### 1. Authentication
+
+Users can register and log in through the frontend. The backend issues an access token and refresh token pair, and the frontend stores them locally to keep the session active.
+
+### 2. Document Upload and Ingestion
+
+Users can upload one or more supported files or ingest content from a URL. Uploaded files are saved temporarily, then processed asynchronously. For files that need OCR, the ingestion path supports image handling as part of the document pipeline.
+
+### 3. Document-Grounded Q&A
+
+Users select one or more documents, ask a question, and the system retrieves relevant chunks from the current tenant only. The answer includes source metadata so the user can verify where the response came from.
+
+### 4. Basic Chat
+
+If the user does not want document grounding, they can use basic chat. This mode goes directly to the LLM without document retrieval.
+
+### 5. Session Management
+
+Chat sessions are stored per user and can be listed, renamed, deleted, or resumed. Document-mode sessions stay linked to their selected document set.
+
+---
+
+## API Overview
+
+All protected endpoints require a Bearer token.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Service health check |
+| `POST` | `/auth/register` | Create a user and return tokens |
+| `POST` | `/auth/login` | Authenticate an existing user |
+| `POST` | `/auth/refresh` | Refresh access tokens |
+| `POST` | `/ingest/url` | Ingest one URL or a list of URLs |
+| `POST` | `/ingest/file` | Upload and ingest files |
+| `GET` | `/documents` | List the current user’s documents |
+| `DELETE` | `/documents/{document_id}` | Delete a document and its related data |
+| `POST` | `/ask` | Ask a grounded question over documents |
+| `POST` | `/chat/basic` | Ask a general-purpose chat message |
+| `POST` | `/chat/sessions` | Create a chat session |
+| `GET` | `/chat/sessions` | List chat sessions |
+| `GET` | `/chat/history/{session_id}` | Fetch a session’s message history |
+| `PATCH` | `/chat/sessions/{session_id}` | Rename a chat session |
+| `DELETE` | `/chat/sessions/{session_id}` | Delete a chat session |
+
+### Example Requests
 
 ```bash
+curl -X GET http://localhost:8000/health
+```
+
+```bash
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"name@example.com","password":"your-password"}'
+```
+
+```bash
+curl -X POST http://localhost:8000/ask \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"document_id":"YOUR_DOCUMENT_ID","question":"What is this about?","top_k":10}'
+```
+
+---
+
+## Security and Multitenancy
+
+This project is designed for per-user isolation.
+
+- PostgreSQL queries are filtered by the current user.
+- Qdrant vectors are tagged with a tenant identifier and searched with tenant filters.
+- Chat sessions, documents, and chunks are stored per user.
+- Rate limiting is applied to ingestion, question answering, and basic chat endpoints.
+
+This means one user cannot read another user’s documents, chat history, or vector results through normal API usage.
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL database or Supabase Postgres
+- Qdrant instance
+- Groq API key
+
+### 1. Backend Environment
+
+From the project root:
+
+```bash
+cd rag
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Frontend Setup (React / Vite)
+### 2. Frontend Environment
 
 ```bash
 cd web
 npm install
-cd ..
 ```
 
-### 3. Environment Configuration
+### 3. Environment Variables
 
-Create a `.env` file in the project root:
+Create a `.env` file inside `rag/`:
 
 ```env
-# Required for generation / HyDE / basic chat
 GROQ_API_KEY=your_groq_api_key
 
-# Required by app/db/postgres.py — use either DATABASE_URL or SUPABASE_DB_URL
 DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/rag
+# or
 # SUPABASE_DB_URL=postgresql+psycopg2://...
 
-# Qdrant options (use one style)
 QDRANT_URL=http://localhost:6333
-# or:
+# or
 # QDRANT_HOST=localhost
 # QDRANT_PORT=6334
+
+VITE_API_URL=http://localhost:8000
 ```
 
-> 💡 If `QDRANT_URL` is not set, the backend falls back to `QDRANT_HOST` / `QDRANT_PORT`.
-
-### 4. Run Qdrant (Docker)
+### 4. Start Qdrant
 
 ```bash
 docker run -p 6333:6333 qdrant/qdrant
@@ -143,184 +329,58 @@ docker run -p 6333:6333 qdrant/qdrant
 ### 5. Run the Backend
 
 ```bash
+cd rag
+source .venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 6. Run the Frontend
 
 ```bash
-cd web
+cd rag/web
 npm run dev
 ```
 
-Open the app at **http://localhost:5173**
+Open the app at `http://localhost:5173`.
 
 ---
 
-## 📡 API Reference
+## Evaluation
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Health check for the backend service |
-| `POST` | `/ingest/url` | Ingest a document from a live URL |
-| `POST` | `/ingest/file` | Ingest a file (`PDF`, `TXT`, `CSV`) |
-| `POST` | `/ask` | Document-grounded Q&A — runs full retrieval pipeline, returns answer + citations |
-| `POST` | `/chat/basic` | Basic general-purpose chat (no document retrieval) |
-| `POST` | `/chat/sessions` | Create a new chat session |
-| `GET` | `/chat/sessions` | List existing chat sessions |
-| `GET` | `/chat/history/{session_id}` | Fetch full message history for a session |
+The repository includes an evaluation pipeline for RAG quality. It is intended to measure how well the retriever and generator behave against a labeled dataset.
 
-**Example calls:**
+Run it from the backend directory:
 
 ```bash
-curl -X GET http://localhost:8000/health
-```
-
-```bash
-curl -X POST http://localhost:8000/ingest/url \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com"}'
-```
-
-```bash
-curl -X POST http://localhost:8000/ask \
-  -H "Content-Type: application/json" \
-  -d '{"document_id":"YOUR_DOCUMENT_ID","question":"What is this about?","top_k":10}'
-```
-
----
-
-## 🔍 System Deep Dive & Architecture Decisions
-
-<details>
-<summary><strong>1. Why RAG? (Solving stale memory & hallucination)</strong></summary>
-
-<br>
-
-Plain LLMs generate text by pattern completion over statistically learned parameters — they have no guaranteed, verifiable, up-to-date external memory. When a prompt lacks grounding, models often **hallucinate**: producing confident but fabricated statements, because they optimize for plausibility, not factual accuracy.
-
-**Retrieval-Augmented Generation (RAG)** anchors generation to real evidence. A retriever first fetches relevant passages from a trusted knowledge store; the LLM then composes an answer *conditioned on that retrieved context*, and can cite exactly where each claim came from.
-
-> Think of the retriever as a researcher pulling official documents, and the LLM as a writer who must cite those documents while drafting the answer.
-
-</details>
-
-<details>
-<summary><strong>2. Retrieval Engine Mechanics — HyDE → Hybrid Search → Reranking</strong></summary>
-
-<br>
-
-**Step 1 — HyDE (Hypothetical Document Embeddings)**
-Instead of embedding the raw (often short or ambiguous) user question, the LLM first generates a *hypothetical answer* to the question. This synthetic passage is phrased more like the target documents, so its embedding matches relevant chunks far better than the bare question — improving recall, at the cost of one extra LLM call.
-
-**Step 2 — Hybrid Retrieval (Dense + Sparse)**
-- **Dense (Qdrant):** The HyDE/question embedding is compared against stored chunk vectors via ANN search (cosine similarity), capturing *semantic* relevance.
-- **Sparse (BM25):** A TF-IDF-style ranking function scores chunks by exact term overlap, rewarding matches on proper nouns, IDs, and domain-specific keywords that vector models can underweight.
-- **Fusion (RRF):** Both ranked lists are merged using **Reciprocal Rank Fusion** — for each chunk, `score = Σ 1 / (k + rank)` across both lists (k ≈ 60) — boosting chunks that rank highly in *either* method.
-
-**Step 3 — Cross-Encoder Reranking**
-Bi-encoders (used for fast retrieval) embed the query and document independently. A **cross-encoder** instead feeds the (question, chunk) pair jointly through a transformer with full cross-attention, producing a much more precise relevance score. It's slower, so it's only applied to the top candidates from hybrid retrieval — trading a small compute cost for a large precision gain.
-
-</details>
-
-<details>
-<summary><strong>3. Storage Strategy — PostgreSQL vs. Qdrant</strong></summary>
-
-<br>
-
-| Store | Role |
-|---|---|
-| **PostgreSQL** | Structured metadata: document source, chunk text, timestamps, uploader, chat sessions/messages. Enables transactions, joins, and full audit trails. |
-| **Qdrant** | High-dimensional vector storage with HNSW indexing for fast ANN search, plus lightweight payloads for filtering and source display. |
-
-Relational databases excel at complex queries and data integrity; vector databases excel at approximate nearest-neighbor search at scale. Splitting responsibilities lets each system do what it's best at, rather than compromising on both.
-
-</details>
-
-<details>
-<summary><strong>4. Evaluation — RAGAs Metrics</strong></summary>
-
-<br>
-
-RAGAs measures the quality of a RAG pipeline against a labeled test set (questions + ground-truth contexts + reference answers):
-
-- **Faithfulness** — Are the claims in the generated answer actually supported by the retrieved context? (Precision of facts.)
-- **Answer Relevancy** — How well does the answer actually address the user's question?
-- **Context Recall** — What fraction of the necessary supporting evidence was retrieved among the top contexts?
-
-Run it locally:
-
-```bash
+cd rag
 python -m app.evaluation.evaluate
 ```
 
-</details>
+The main metrics are:
 
-<details>
-<summary><strong>5. Two Chat Modes — When to Use Which</strong></summary>
-
-<br>
-
-| Mode | Endpoint | Behavior | Use Case |
-|---|---|---|---|
-| **Document Mode** | `/ask` | Full retrieval pipeline; answers constrained to retrieved context, returned with sources | Domain-specific, verifiable, official answers |
-| **Basic Chat** | `/chat/basic` | Direct LLM conversation, no retrieval | Open-ended conversation, no grounding overhead needed |
-
-</details>
+- Faithfulness
+- Answer relevancy
+- Context recall
 
 ---
 
-## 🛠️ Troubleshooting & Known Limitations
+## Why This Architecture
 
-### Common Pitfalls
+This project uses RAG because official knowledge changes over time and must remain traceable. A plain LLM can answer fluently, but not reliably from the latest official records. By adding retrieval, reranking, and citations, the system keeps answers closer to the source material and easier to verify.
 
-| Issue | Resolution |
-|---|---|
-| **Database URL error** | Ensure `DATABASE_URL` or `SUPABASE_DB_URL` is set correctly in `.env`. |
-| **Qdrant connection error** | Confirm Qdrant is running (`docker run -p 6333:6333 qdrant/qdrant`) and that `QDRANT_URL`/`QDRANT_HOST`/`QDRANT_PORT` match your setup. |
-| **CORS / proxy issues in web app** | Ensure the backend is running on port `8000` and the frontend dev server on port `5173`. |
-| **`/ingest/file` rejects a file** | Only `PDF`, `TXT`, and `CSV` are currently supported. |
-| **`/ask` returns an error** | Requires a valid `document_id` returned from a prior `/ingest/*` call. |
-
-### Known Limitations
-
-- **Chunking trade-offs** — Small chunks lose surrounding context and inflate index size; large chunks dilute relevance and eat into the reranking/generation token budget.
-- **BM25 exact-match behavior** — Struggles with paraphrasing; relies on literal token overlap, so it can miss semantically identical but differently-worded content.
-- **OCR dependency** — Scanned (image-based) PDFs require OCR (Tesseract), which is slower and less reliable than native text extraction.
-- **HyDE bias risk** — If the LLM imagines an inaccurate hypothetical document, retrieval can be pulled toward irrelevant passages; also adds latency/cost per query.
-- **Retrieval gaps** — If a needed document was never ingested, or relevant passages weren't retrieved, the generator may still produce a low-confidence or hallucinated answer despite grounding safeguards.
+PostgreSQL handles structured data like users, sessions, and document metadata. Qdrant handles semantic search over chunk embeddings. That separation keeps each storage layer focused on the job it does best.
 
 ---
 
-## 📁 Project Structure
+## Troubleshooting
 
-```text
-rag/
-  app/
-    api/            # API service orchestration
-    db/             # PostgreSQL models/store, Qdrant client
-    embeddings/     # Sentence-transformers embedder
-    evaluation/     # RAGAs dataset and evaluator
-    generation/     # Groq generator
-    ingestion/      # URL/PDF/TXT/CSV loader + chunking pipeline
-    retrieval/      # BM25, hybrid, HyDE, reranker
-    vectorstore/    # Qdrant store wrapper
-    main.py         # FastAPI app
-  web/              # React + Vite frontend
-  scripts/          # Local utility scripts
-  data/             # Input data
-  storage/uploads/  # Uploaded files
-```
+- If uploads fail, verify the backend can create `storage/uploads/` and that the file type is supported.
+- If document-grounded answers are empty, confirm the document was ingested successfully and that the user is querying their own tenant data.
+- If the frontend cannot reach the backend, check `VITE_API_URL` and CORS settings.
+- If the app cannot connect to Qdrant or PostgreSQL, verify the connection URLs in `.env`.
 
 ---
 
-## 📄 License
+## Summary
 
-Distributed under the **MIT License**.
-
----
-
-<p align="center">
-  Built for the <strong>HTE Department</strong> · VJTI Mumbai Government Hackathon<br>
-  <em>"Instant, Reliable & Grounded Access to Official Administrative Knowledge"</em>
-</p>
+HTE-Samvad RAG Engine turns official HTE documents into a searchable, secure, multi-user question answering system. It supports ingestion, OCR-assisted document processing, hybrid retrieval, grounded answer generation, chat sessions, and per-user isolation across the full stack.
