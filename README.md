@@ -70,36 +70,6 @@ graph TD
     LLM --> ANS["✅ Grounded Answer<br/>+ Inline Citations + Sources"]
     ANS --> DB[("🗄️ PostgreSQL<br/>chat history / sessions")]
 ```
-
----
-
-# 🏛️ HTE-Samvad RAG Engine
-
-### *Instant, Reliable & Grounded Access to Official Administrative Knowledge*
-
-**AI-powered question answering system for the HTE Department** built for the VJTI Mumbai Government Hackathon.
-
-<p>
-  <img src="https://camo.githubusercontent.com/629436a6802e7ac32a847d0887585634ccf768c75901f1bb547bba090e528df/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f707974686f6e2d332e31302532422d626c75653f6c6f676f3d707974686f6e266c6f676f436f6c6f723d7768697465" alt="Python 3.10+">
-  <img src="https://camo.githubusercontent.com/d1b96a79e5af4cdc992f282f835f51c5f93deb27ae407839cf62857a71c45aa7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f466173744150492d6261636b656e642d3030393638383f6c6f676f3d66617374617069266c6f676f436f6c6f723d7768697465" alt="FastAPI">
-  <img src="https://camo.githubusercontent.com/af959aded4e6a0039a2049bb7d263a9b0165f44ec7cf3cbb818a48fc580e18af/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f52656163742d566974652d3631444146423f6c6f676f3d7265616374266c6f676f436f6c6f723d7768697465" alt="React + Vite">
-  <img src="https://camo.githubusercontent.com/ee267b05d1c512c971777685f7c0ddd383359d8d4698d2706f19274be73b691e/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f566563746f7244422d516472616e742d4443323434433f6c6f676f3d716472616e74266c6f676f436f6c6f723d7768697465" alt="Qdrant">
-  <img src="https://camo.githubusercontent.com/35d640dc6ef347f2f94c70f5da11333aebf6f5d43fa50a9e112b24ea19b06567/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f44422d506f737467726553514c2d3431363945313f6c6f676f3d706f737467726573716c266c6f676f436f6c6f723d7768697465" alt="PostgreSQL">
-  <img src="https://camo.githubusercontent.com/86a6ced842d126ee99bf7f1ef0d99c41d5959dc8cc05cc9235321da05f134ea7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f4c4c4d2d47726f712d4635353033363f6c6f676f3d67726f71266c6f676f436f6c6f723d7768697465" alt="Groq">
-  <img src="https://camo.githubusercontent.com/7ee63b2904dc2af8a83b22a0df53d3495728d2002a439fb9b5f647bfeefb902c/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6576616c2d52414741732d384132424532" alt="RAGAs">
-  <img src="https://camo.githubusercontent.com/f8df3091bbe1149f398a5369b2c39e896766f9f6efba3477c63e9b4aa940ef14/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d677265656e" alt="License: MIT">
-</p>
-
----
-
-## What This Project Does
-
-HTE-Samvad is a retrieval-augmented generation system for official, administrative, and policy documents. It lets users upload documents or ingest a URL, then ask natural-language questions and receive answers that are grounded in the ingested source material.
-
-The backend splits documents into chunks, generates embeddings, stores structured metadata in PostgreSQL, stores vectors in Qdrant, and then uses hybrid retrieval plus reranking to find the best evidence before generating a response with Groq. The frontend provides an authenticated chat workspace for uploading documents, browsing them, starting chat sessions, and switching between document-grounded Q&A and general chat.
-
-In short, this project helps departments turn long, scattered official content into a searchable and citeable knowledge base.
-
 ---
 
 ## Core Capabilities
@@ -115,37 +85,6 @@ In short, this project helps departments turn long, scattered official content i
 - Evaluate retrieval quality with RAGAs.
 
 ---
-
-## How It Works
-
-### Ingestion Flow
-
-```mermaid
-graph TD
-    A["Source input\nPDF / TXT / CSV / Image / URL"] --> B["Loader + OCR fallback"]
-    B --> C["Chunking pipeline"]
-    C --> D["Embeddings"]
-    D --> E[("PostgreSQL\nDocuments, chunks, sessions")]
-    D --> F[("Qdrant\nVectors + tenant payloads")]
-    E --> G["Ready for retrieval"]
-    F --> G
-```
-
-### Question Answering Flow
-
-```mermaid
-graph TD
-    Q["User question"] --> H["HyDE query expansion"]
-    H --> D1["Dense search in Qdrant"]
-    Q --> S1["Sparse BM25 search"]
-    D1 --> M["Hybrid merge / fusion"]
-    S1 --> M
-    M --> R["Cross-encoder reranking"]
-    R --> K["Top-k evidence chunks"]
-    K --> P["Prompt assembly"]
-    P --> L["Groq LLM generation"]
-    L --> A["Grounded answer + sources"]
-```
 
 The main retrieval path is built to reduce hallucinations. The system first expands the query with HyDE, then combines dense vector search with BM25 keyword search, then reranks the candidate chunks before passing only the best context to the LLM.
 
