@@ -17,12 +17,25 @@ bcrypt
 PyJWT
 slowapi
 
-# LangChain pieces used by ingestion/chunking
+
 langchain-core
 langchain-text-splitters
 
-# LLM client used in generation/HyDE
+
 groq
 
 # OCR for image ingestion (paddlex/paddlepaddle pulled in transitively)
 paddleocr
+
+# Speech-to-text (offline, CPU-friendly via CTranslate2)
+faster-whisper
+paddlepaddle
+paddlehub
+# SentenceTransformers
+sentence-transformers
+datasets
+langchain-groq
+langchain-huggingface
+pillow
+newspaper3k
+pdfplumber

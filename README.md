@@ -269,7 +269,7 @@ docker run -p 6333:6333 qdrant/qdrant
 
 ```bash
 cd rag
-source .venv/bin/activate
+.\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 

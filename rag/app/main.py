@@ -19,6 +19,7 @@ import uuid
 from typing import Optional, List
 
 from app.ocr.ocr_service import IMAGE_EXTENSIONS
+from app.services.speech import AUDIO_EXTENSIONS, transcribe_audio
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +297,90 @@ async def ingest_file(
                 ) from e
 
     return {"results": results, "status": "processing"}
+
+
+ALLOWED_AUDIO_EXTENSIONS = AUDIO_EXTENSIONS  # {.wav, .mp3, .m4a, .ogg, .webm}
+
+
+@app.post("/transcribe")
+@limiter.limit(RATE_LIMIT_ASK)
+async def transcribe_voice(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Transcribe an uploaded audio file to text using Faster-Whisper.
+
+    Returns the transcribed text so the frontend can populate the
+    existing chat input. Does NOT feed into the RAG pipeline directly.
+    """
+    filename = file.filename or ""
+    _, ext = os.path.splitext(filename.lower())
+
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported audio format '{ext}'. "
+                f"Supported: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}."
+            ),
+        )
+
+    logger.info(
+        "Received audio file for transcription: %s (ext=%s, user=%s)",
+        filename,
+        ext,
+        user.id,
+    )
+
+    # Save to temporary location (reuse existing uploads directory)
+    os.makedirs("storage/uploads", exist_ok=True)
+    saved_path = os.path.join("storage", "uploads", f"{uuid.uuid4().hex}{ext}")
+
+    try:
+        await _save_upload_file(file, saved_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save uploaded audio file.",
+        ) from e
+    finally:
+        try:
+            file.file.close()
+        except Exception:
+            pass
+
+    # Transcribe in a threadpool to avoid blocking the event loop
+    try:
+        logger.info("Starting transcription for %s", filename)
+        result = await run_in_threadpool(transcribe_audio, saved_path)
+        logger.info(
+            "Transcription successful: language=%s, duration=%.2fs, chars=%d, file=%s",
+            result["language"],
+            result["duration_seconds"],
+            len(result["text"]),
+            filename,
+        )
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("Unexpected transcription error for %s", filename)
+        raise HTTPException(
+            status_code=500, detail=f"Transcription failed: {str(e)}"
+        ) from e
+    finally:
+        # Clean up the temporary audio file
+        try:
+            if os.path.exists(saved_path):
+                os.remove(saved_path)
+                logger.debug("Cleaned up temp audio file: %s", saved_path)
+        except Exception:
+            logger.warning("Failed to clean up temp file: %s", saved_path)
 
 
 @app.get("/documents")

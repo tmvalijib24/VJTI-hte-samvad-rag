@@ -47,8 +47,15 @@ function App() {
   const [sessionTitleInput, setSessionTitleInput] = useState('')
   const [sessionDialogBusy, setSessionDialogBusy] = useState(false)
 
+  // Voice input state
+  const [isRecording, setIsRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
+
   const listRef = useRef(null)
   const suppressAutoLoadRef = useRef(false)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
   const isAuthed = Boolean(accessToken)
 
   useEffect(() => {
@@ -574,6 +581,95 @@ function App() {
     }
   }
 
+  // ── Voice recording ──
+
+  async function startRecording() {
+    setVoiceError('')
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVoiceError('Your browser does not support microphone access.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      })
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks to release the microphone
+        stream.getTracks().forEach((t) => t.stop())
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        audioChunksRef.current = []
+
+        if (audioBlob.size < 100) {
+          setVoiceError('Recording was too short or empty. Please try again.')
+          return
+        }
+
+        await transcribeAudio(audioBlob)
+      }
+
+      mediaRecorderRef.current = mediaRecorder
+      mediaRecorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setVoiceError('Microphone permission was denied. Please allow access and try again.')
+      } else {
+        setVoiceError(`Could not access microphone: ${err.message || String(err)}`)
+      }
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsRecording(false)
+  }
+
+  async function transcribeAudio(audioBlob) {
+    setIsTranscribing(true)
+    setVoiceError('')
+    try {
+      const form = new FormData()
+      form.append('file', audioBlob, 'recording.webm')
+
+      const res = await apiFetch('/transcribe', { method: 'POST', body: form })
+      const { json, text } = await readJsonOrText(res)
+
+      if (!res.ok) {
+        throw new Error(json?.detail || text || `Transcription failed (HTTP ${res.status}).`)
+      }
+
+      const transcribedText = (json?.text || '').trim()
+      if (!transcribedText) {
+        setVoiceError('No speech was detected. Please try again.')
+        return
+      }
+
+      // Populate the existing text input so the user can review before sending
+      setQuestion((prev) => {
+        const existing = prev.trim()
+        return existing ? `${existing} ${transcribedText}` : transcribedText
+      })
+    } catch (e) {
+      setVoiceError(e.message || String(e))
+    } finally {
+      setIsTranscribing(false)
+    }
+  }
+
   async function sendQuestion() {
     const q = question.trim()
     if (askMode === 'document' && selectedDocIds.length === 0) {
@@ -929,9 +1025,25 @@ function App() {
             }}
             disabled={isBusy}
           />
+          <button
+            className={`micBtn${isRecording ? ' recording' : ''}${isTranscribing ? ' transcribing' : ''}`}
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isBusy || isTranscribing}
+            title={
+              isTranscribing
+                ? 'Transcribing…'
+                : isRecording
+                  ? 'Stop recording'
+                  : 'Record voice input'
+            }
+          >
+            {isTranscribing ? '⏳' : isRecording ? '⏹' : '🎤'}
+          </button>
           <button className="btn primary" onClick={sendQuestion} disabled={!canAsk}>
             {askMode === 'document' ? 'Ask from PDF/Text' : 'Send'}
           </button>
+          {voiceError ? <div className="voiceError">{voiceError}</div> : null}
         </div>
       </main>
 
