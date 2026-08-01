@@ -1,203 +1,419 @@
-import React from 'react'
+import React, { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Scene } from "./canvas/Scene";
+import { Card, CardContent } from "./ui/card";
+import {
+  Brain,
+  Sparkles,
+  Shield,
+  Zap,
+  Search,
+  Mic,
+  FileText,
+  Globe,
+  ArrowRight,
+} from "lucide-react";
+import brandLogo from "../assets/hero.png";
+import { scrollState } from "./canvas/scrollState";
 
-function LandingPage({
-  brandLogo,
-  authMode,
-  setAuthMode,
-  submitAuth,
-  authName,
-  setAuthName,
-  authEmail,
-  setAuthEmail,
-  authPassword,
-  setAuthPassword,
-  authBusy,
-  authError,
-}) {
+import { useAuth } from "../context/AuthContext";
+
+gsap.registerPlugin(ScrollTrigger);
+
+export default function LandingPage() {
+  const { isAuthed } = useAuth();
+  const containerRef = useRef(null);
+  const heroTextRef = useRef(null);
+  const featuresRef = useRef(null);
+
+  useEffect(() => {
+    if (!heroTextRef.current || !featuresRef.current || !containerRef.current)
+      return;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        heroTextRef.current.children,
+        { y: 40, opacity: 0 },
+        { y: 0, opacity: 1, duration: 1, stagger: 0.2, ease: "power3.out" },
+      );
+      gsap.fromTo(
+        ".feature-card",
+        { y: 40, opacity: 0 },
+        {
+          scrollTrigger: { trigger: featuresRef.current, start: "top 80%" },
+          y: 0,
+          opacity: 1,
+          duration: 0.8,
+          stagger: 0.15,
+          ease: "power2.out",
+        },
+      );
+
+      // ── Water droplet scroll progress (drives WaterScene) ─────────────────
+      scrollState.progress = 0;
+      scrollState.splashFired = false;
+      scrollState.splashTime = -1;
+
+      ScrollTrigger.create({
+        trigger: containerRef.current,
+        start: "top top",
+        end: "bottom bottom",
+        scrub: 1.8,
+        onUpdate: (self) => {
+          scrollState.progress = self.progress;
+        },
+        onLeave: () => {
+          scrollState.progress = 1;
+        },
+        onLeaveBack: () => {
+          scrollState.progress = 0;
+        },
+      });
+    }, containerRef);
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f5f7fb] text-slate-900">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(59,130,246,0.22),transparent_38%),radial-gradient(circle_at_88%_18%,rgba(168,85,247,0.2),transparent_34%),radial-gradient(circle_at_52%_92%,rgba(20,184,166,0.18),transparent_32%)]" />
-      <div className="pointer-events-none absolute -top-24 left-1/2 h-[480px] w-[860px] -translate-x-1/2 rounded-full bg-white/70 blur-3xl" />
+    /* Force dark background so 3D canvas + white text always has contrast */
+    <div
+      ref={containerRef}
+      className="relative min-h-screen text-white selection:bg-blue-500 selection:text-white"
+    >
+      <Scene mode="hero" />
 
-      <nav className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 pb-4 pt-7 lg:px-10">
-        <div className="flex items-center gap-3">
-          <img src={brandLogo} alt="Logo" className="h-9 w-9 rounded-xl ring-1 ring-slate-300/60" />
-          <span className="text-[1.05rem] font-semibold tracking-tight text-slate-900">
-            RAGNexus <span className="font-normal text-slate-500">Cloud</span>
+      {/* Dark overlay to improve text legibility over 3D scene */}
+      <div
+        className="pointer-events-none fixed inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 50%, rgba(6,14,30,0.15) 100%)",
+        }}
+      />
+
+      {/* ── Sticky Navbar ────────────────────────────────────────────────── */}
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3"
+        style={{
+          background: "rgba(6,14,30,0.75)",
+          backdropFilter: "blur(16px)",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+        >
+          <img
+            src={brandLogo}
+            alt="Logo"
+            className="h-8 w-8 rounded-lg shadow-sm"
+          />
+          <span className="text-base font-bold tracking-tight text-white">
+            RAGNexus
           </span>
+        </Link>
+        <div className="hidden items-center gap-6 text-sm font-medium md:flex">
+          <a
+            href="#features"
+            className="text-blue-200/80 hover:text-white transition-colors"
+          >
+            Features
+          </a>
+          <a
+            href="#capabilities"
+            className="text-blue-200/80 hover:text-white transition-colors"
+          >
+            Technology
+          </a>
+          <a
+            href="#security"
+            className="text-blue-200/80 hover:text-white transition-colors"
+          >
+            Security
+          </a>
         </div>
-        <div className="hidden items-center gap-8 text-sm text-slate-600 md:flex">
-          <a href="#features" className="transition hover:text-slate-900">Features</a>
-          <a href="#benefits" className="transition hover:text-slate-900">Benefits</a>
-          <a href="#security" className="transition hover:text-slate-900">Security</a>
+        <div className="flex items-center gap-2">
+          {isAuthed ? (
+            <Link to="/dashboard">
+              <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
+                Go to Dashboard
+              </button>
+            </Link>
+          ) : (
+            <>
+              <Link to="/login">
+                <button className="px-4 py-1.5 rounded-full text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition-all">
+                  Sign In
+                </button>
+              </Link>
+              <Link to="/register">
+                <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
+                  Get Started
+                </button>
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
-      <main className="relative z-10 mx-auto grid w-full max-w-7xl gap-10 px-6 pb-12 pt-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:px-10 lg:pb-20">
-        <section className="space-y-8 self-center">
-          
-
-          <div className="space-y-5">
-            <h1 className="max-w-2xl text-4xl font-semibold leading-[1.05] tracking-[-0.02em] text-slate-900 sm:text-5xl lg:text-6xl">
-              Build AI answers over your knowledge base with enterprise polish.
-            </h1>
-            <p className="max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-              RAGNexus unifies ingestion, hybrid retrieval, and grounded response generation in one clean workspace.
-              Bring your PDFs, URLs, CSVs, and docs, then deliver fast answers your users can verify.
-            </p>
+      {/* ── Hero Section ─────────────────────────────────────────────────── */}
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 pt-20 text-center">
+        <div ref={heroTextRef} className="max-w-4xl space-y-6">
+          <div className="inline-flex items-center rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-sm font-medium text-blue-300">
+            <Sparkles className="mr-2 h-3.5 w-3.5 text-blue-400" />
+            Retrieval-Augmented Generation Platform
           </div>
 
-          <div id="features" className="grid gap-3 sm:grid-cols-2">
-            {[
-              'Multi-tenant isolation by default',
-              'Hybrid search with reranking',
-              'Source-cited responses in chat',
-              'Secure auth + API rate limits',
-            ].map((item) => (
-              <div
-                key={item}
-                className="group rounded-2xl border border-slate-300/70 bg-white/65 px-4 py-3 text-sm text-slate-700 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.45)] backdrop-blur transition hover:-translate-y-0.5 hover:border-slate-400"
-              >
-                <span className="mr-2 text-emerald-500">●</span>
-                {item}
+          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-white leading-tight drop-shadow-md">
+            Intelligence grounded in{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-cyan-300">
+              your knowledge
+            </span>
+            .
+          </h1>
+
+          <p className="mx-auto max-w-2xl text-lg sm:text-xl leading-relaxed text-white drop-shadow-md">
+            A premium AI workspace that unifies document ingestion, hybrid
+            semantic search, and grounded answers with verifiable citations —
+            built for accuracy you can trust.
+          </p>
+
+          <div className="flex items-center justify-center gap-4 pt-4 flex-wrap">
+            <Link to="/register">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-xl shadow-blue-900/50 hover:-translate-y-0.5 transition-all">
+                Start Building Free
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </Link>
+            <a href="#features">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold text-white border border-white/20 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition-all">
+                See Features
+              </button>
+            </a>
+          </div>
+        </div>
+      </main>
+
+      {/* ── Features Grid ────────────────────────────────────────────────── */}
+      <section
+        id="features"
+        ref={featuresRef}
+        className="relative z-10 py-32 px-6 lg:px-8 max-w-7xl mx-auto"
+      >
+        <div className="mb-16 text-center">
+          <h2 className="text-4xl font-bold tracking-tight sm:text-4xl text-white drop-shadow-lg">
+            Everything you need
+          </h2>
+          <p className="mt-4 text-blue-600/80 text-lg drop-shadow-md">
+            Built for performance, accuracy, and trust.
+          </p>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            {
+              icon: <Zap className="h-6 w-6 text-blue-300" />,
+              title: "Ultra-Low Latency",
+              desc: "Optimized hybrid retrieval pipeline with BM25 + vector search ensuring lightning-fast, accurate answers.",
+            },
+            {
+              icon: <Search className="h-6 w-6 text-blue-300" />,
+              title: "Source Citations",
+              desc: "Every response includes verifiable document chunk references with page numbers and relevance scores.",
+            },
+            {
+              icon: <Shield className="h-6 w-6 text-blue-300" />,
+              title: "Enterprise Security",
+              desc: "Multi-tenant isolation, JWT authentication, rate limiting, and strict per-user access controls.",
+            },
+            {
+              icon: <FileText className="h-6 w-6 text-blue-300" />,
+              title: "OCR Support",
+              desc: "Automatically extract text from scanned PDFs and images using advanced OCR technology.",
+            },
+            {
+              icon: <Mic className="h-6 w-6 text-blue-300" />,
+              title: "Voice Input",
+              desc: "Speak your questions naturally with built-in Whisper-powered voice transcription.",
+            },
+            {
+              icon: <Globe className="h-6 w-6 text-blue-300" />,
+              title: "URL Ingestion",
+              desc: "Ingest content from any public webpage — paste a URL and ask questions instantly.",
+            },
+          ].map((f) => (
+            <div
+              key={f.title}
+              className="feature-card rounded-2xl p-6 border transition-all duration-300 hover:-translate-y-1"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                borderColor: "rgba(255,255,255,0.1)",
+                backdropFilter: "blur(12px)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(99,179,237,0.35)";
+                e.currentTarget.style.background = "rgba(99,179,237,0.07)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+              }}
+            >
+              <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center mb-4 border border-blue-400/20 drop-shadow-md">
+                {f.icon}
               </div>
+              <h3 className="text-base font-semibold mb-2 text-white drop-shadow-lg">
+                {f.title}
+              </h3>
+              <p className="text-sm text-blue-600/70 drop-shadow-md leading-relaxed">
+                {f.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Technology section ───────────────────────────────────────────── */}
+      <section
+        id="capabilities"
+        className="relative z-10 py-24 px-6"
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          borderTop: "1px solid rgba(255,255,255,0.07)",
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight text-white">
+            Powered by cutting-edge AI
+          </h2>
+          <p className="text-blue-200 drop-shadow-md text-lg">
+            A complete RAG pipeline with hybrid retrieval, reranking, and
+            generation.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
+            {[
+              "Hybrid Search",
+              "HyDE Expansion",
+              "Cross-Encoder Reranking",
+              "Groq LLM",
+              "Qdrant Vector DB",
+              "Whisper ASR",
+              "Multilingual OCR",
+              "FastAPI Backend",
+            ].map((tag) => (
+              <span
+                key={tag}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-blue-200 border"
+                style={{
+                  background: "rgba(19, 85, 190, 1)",
+                  borderColor: "rgba(3, 146, 248, 1)",
+                }}
+              >
+                {tag}
+              </span>
             ))}
           </div>
+        </div>
+      </section>
 
-          <div id="benefits" className="grid gap-4 pt-2 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-300/70 bg-white/70 p-4 backdrop-blur">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latency</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">-42%</div>
-              <p className="mt-1 text-sm text-slate-600">Faster first answer with optimized retrieval.</p>
+      {/* ── Security section ─────────────────────────────────────────────── */}
+      <section
+        id="security"
+        className="relative z-10 py-24 px-6 max-w-4xl mx-auto text-center"
+      >
+        <Shield className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+        <h2 className="text-3xl font-bold tracking-tight text-white mb-4">
+          Built for security
+        </h2>
+        <p className="text-blue-200/70 mb-10">
+          Your documents never mix. Every user operates in strict isolation.
+        </p>
+        <div className="grid sm:grid-cols-3 gap-6">
+          {[
+            {
+              title: "Multi-Tenant Isolation",
+              desc: "Each user's data is fully separated in both the vector store and database.",
+            },
+            {
+              title: "JWT Authentication",
+              desc: "Short-lived access tokens with refresh rotation and secure storage.",
+            },
+            {
+              title: "Rate Limiting",
+              desc: "Built-in rate limits protect against abuse and ensure fair usage.",
+            },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="p-5 rounded-xl text-left"
+              style={{
+                background: "rgba(255, 255, 255, 0.19)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <h3 className="font-semibold text-sm text-white drop-shadow-lg mb-1.5">
+                {item.title}
+              </h3>
+              <p className="text-xs text-blue-600/60 drop-shadow-md leading-relaxed">
+                {item.desc}
+              </p>
             </div>
-            <div className="rounded-2xl border border-slate-300/70 bg-white/70 p-4 backdrop-blur">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Trust</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">98%</div>
-              <p className="mt-1 text-sm text-slate-600">Answers include chunk-level evidence by design.</p>
-            </div>
-            <div id="security" className="rounded-2xl border border-slate-300/70 bg-white/70 p-4 backdrop-blur">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Security</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">SOC-ready</div>
-              <p className="mt-1 text-sm text-slate-600">JWT, role-ready model, tenant-aware storage paths.</p>
-            </div>
-          </div>
-        </section>
+          ))}
+        </div>
+      </section>
 
-        <section className="relative">
-          <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-sky-200/50 via-violet-200/40 to-cyan-100/40 blur-2xl" />
-
-          <div className="relative rounded-[1.75rem] border border-slate-300/70 bg-white/75 p-6 shadow-[0_24px_80px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl sm:p-8">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  {authMode === 'login' ? 'Welcome back' : 'Create your workspace'}
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">Secure access to your private RAG stack.</p>
-              </div>
-              
-            </div>
-
-            <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
-              <button
-                type="button"
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  authMode === 'login'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-                onClick={() => setAuthMode('login')}
-              >
+      {/* ── CTA Banner ───────────────────────────────────────────────────── */}
+      <section className="relative z-10 py-24 px-6">
+        <div
+          className="max-w-2xl mx-auto text-center rounded-3xl p-12"
+          style={{
+            background: "rgba(59,130,246,0.08)",
+            border: "1px solid rgba(99,179,237,0.2)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <Brain className="h-10 w-10 text-blue-400 mx-auto mb-4" />
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Ready to get started?
+          </h2>
+          <p className="text-blue-200/70 mb-8">
+            Create your free workspace in seconds. No credit card required.
+          </p>
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            <Link to="/register">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-xl shadow-blue-900/50 transition-all">
+                Create free account
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </Link>
+            <Link to="/login">
+              <button className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-medium text-blue-100 border border-white/20 hover:bg-white/10 transition-all">
                 Sign in
               </button>
-              <button
-                type="button"
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  authMode === 'register'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-                onClick={() => setAuthMode('register')}
-              >
-                Register
-              </button>
-            </div>
-
-            <form className="space-y-4" onSubmit={submitAuth}>
-              {authMode === 'register' && (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full name</label>
-                  <input
-                    type="text"
-                    placeholder="Alex Rivera"
-                    value={authName}
-                    onChange={(e) => setAuthName(e.target.value)}
-                    disabled={authBusy}
-                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Work email</label>
-                <input
-                  type="email"
-                  placeholder="name@company.com"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  disabled={authBusy}
-                  required
-                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
-                <input
-                  type="password"
-                  placeholder="Minimum 8 characters"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  disabled={authBusy}
-                  required
-                  minLength={8}
-                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                />
-              </div>
-
-              {authError ? (
-                <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                  {authError}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={authBusy}
-                className="group relative flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-sm font-semibold text-white shadow-[0_14px_35px_-16px_rgba(15,23,42,0.9)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {authBusy ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Processing...
-                  </span>
-                ) : authMode === 'login' ? (
-                  'Access Dashboard'
-                ) : (
-                  'Create Account'
-                )}
-              </button>
-            </form>
-
-            
-
-            <div className="mt-4 text-center text-xs text-slate-500">
-              By continuing, you agree to secure data processing with tenant isolation.
-            </div>
+            </Link>
           </div>
-        </section>
-      </main>
-    </div>
-  )
-}
+        </div>
+      </section>
 
-export default LandingPage
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer
+        className="relative z-10 py-10 px-6 text-center text-sm text-blue-300/50"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <img
+            src={brandLogo}
+            alt="Logo"
+            className="h-5 w-5 rounded opacity-80"
+          />
+          <span className="font-medium text-white/70">RAGNexus</span>
+        </div>
+        <p>
+          © {new Date().getFullYear()} RAGNexus. Built with precision for
+          AI-powered document intelligence.
+        </p>
+      </footer>
+    </div>
+  );
+}

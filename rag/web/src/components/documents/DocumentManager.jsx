@@ -1,0 +1,180 @@
+import React, { useRef, useState } from 'react'
+import { UploadCloud, Trash2, File as FileIcon, CheckCircle, XCircle } from 'lucide-react'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Card } from '../ui/card'
+import { Badge } from '../ui/badge'
+
+export function DocumentManager({
+  documents,
+  selectedDocIds,
+  setSelectedDocIds,
+  deleteDocument,
+  status,
+  error,
+  isBusy,
+  url,
+  setUrl,
+  files,
+  setFiles,
+  submitUpload
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFiles(Array.from(e.dataTransfer.files))
+    }
+  }
+
+  const handleFileChange = (e) => {
+    if (e.target.files) {
+      setFiles(Array.from(e.target.files))
+    }
+  }
+
+  const toggleSelection = (docId) => {
+    setSelectedDocIds(prev => 
+      prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
+    )
+  }
+
+  return (
+    <div className="w-80 flex-shrink-0 border-l border-border/50 bg-background/40 backdrop-blur-xl h-screen overflow-y-auto hidden lg:block z-10 relative">
+      <div className="p-5 space-y-6">
+        <div>
+          <h3 className="text-sm font-semibold mb-3 flex items-center justify-between">
+            Knowledge Base
+            <Badge variant="secondary" className="font-normal text-xs">{documents.length}</Badge>
+          </h3>
+
+          <form onSubmit={(e) => { e.preventDefault(); submitUpload() }} className="space-y-3">
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-300 ${
+                isDragging ? 'border-accent bg-accent/5 scale-[1.02]' : 'border-border/60 hover:border-accent/50 hover:bg-secondary/20'
+              }`}
+            >
+              <input
+                type="file"
+                multiple
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={isBusy}
+              />
+              <div className="flex justify-center mb-2">
+                <UploadCloud className={`w-8 h-8 ${isDragging ? 'text-accent' : 'text-muted-foreground'}`} />
+              </div>
+              <p className="text-sm font-medium">Click or drag files here</p>
+              <p className="text-xs text-muted-foreground mt-1">PDF, TXT, CSV up to 10MB</p>
+              
+              {files.length > 0 && (
+                <div className="mt-3 text-xs font-semibold text-accent bg-accent/10 py-1 px-2 rounded-md truncate">
+                  {files.length} file(s) selected
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                type="url"
+                placeholder="Or paste a URL..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={isBusy}
+                className="bg-background/50 h-9"
+              />
+            </div>
+
+            <Button type="submit" disabled={isBusy || (files.length === 0 && !url)} className="w-full h-9 shadow-sm hover:shadow">
+              {isBusy ? (
+                 <span className="flex items-center gap-2">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Uploading...
+                </span>
+              ) : 'Upload to Knowledge Base'}
+            </Button>
+          </form>
+
+          {status && (
+            <div className="mt-3 flex items-start gap-2 text-xs text-emerald-600 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              <span>{status}</span>
+            </div>
+          )}
+          {error && (
+            <div className="mt-3 flex items-start gap-2 text-xs text-destructive bg-destructive/10 p-2 rounded-lg border border-destructive/20">
+              <XCircle className="w-4 h-4 shrink-0" />
+              <span className="break-words">{error}</span>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Available Documents
+          </h4>
+          <div className="space-y-2">
+            {documents.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground bg-secondary/20 rounded-xl border border-dashed border-border/50">
+                No documents found.
+              </div>
+            ) : (
+              documents.map(doc => {
+                const isSelected = selectedDocIds.includes(doc.id)
+                return (
+                  <Card 
+                    key={doc.id} 
+                    className={`p-3 flex items-start gap-3 cursor-pointer transition-all duration-200 border ${
+                      isSelected 
+                        ? 'border-accent bg-accent/5 shadow-sm' 
+                        : 'border-border/40 hover:border-border/80 hover:bg-secondary/30 bg-background/50'
+                    }`}
+                    onClick={() => toggleSelection(doc.id)}
+                  >
+                    <div className="pt-0.5">
+                      <FileIcon className={`w-4 h-4 ${isSelected ? 'text-accent' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" title={doc.title || doc.source}>{doc.title || doc.source}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {new Date(doc.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive opacity-50 hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteDocument(doc.id)
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </Card>
+                )
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
