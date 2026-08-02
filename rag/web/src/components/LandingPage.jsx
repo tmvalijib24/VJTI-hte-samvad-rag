@@ -78,7 +78,7 @@ export default function LandingPage() {
     /* Force dark background so 3D canvas + white text always has contrast */
     <div
       ref={containerRef}
-      className="relative min-h-screen text-white selection:bg-blue-500 selection:text-white"
+      className="relative min-h-screen text-slate-900 selection:bg-blue-500 selection:text-slate-900"
     >
       <Scene mode="hero" />
 
@@ -87,7 +87,7 @@ export default function LandingPage() {
         className="pointer-events-none fixed inset-0 z-[1]"
         style={{
           background:
-            "radial-gradient(ellipse at center, transparent 50%, rgba(6,14,30,0.15) 100%)",
+            "radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.4) 100%)",
         }}
       />
 
@@ -95,9 +95,9 @@ export default function LandingPage() {
       <nav
         className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3"
         style={{
-          background: "rgba(6,14,30,0.75)",
+          background: "rgba(255,255,255,0.75)",
           backdropFilter: "blur(16px)",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: "1px solid rgba(0,0,0,0.08)",
         }}
       >
         <Link
@@ -109,26 +109,26 @@ export default function LandingPage() {
             alt="Logo"
             className="h-8 w-8 rounded-lg shadow-sm"
           />
-          <span className="text-base font-bold tracking-tight text-white">
+          <span className="text-base font-bold tracking-tight text-slate-900">
             RAGNexus
           </span>
         </Link>
         <div className="hidden items-center gap-6 text-sm font-medium md:flex">
           <a
             href="#features"
-            className="text-blue-200/80 hover:text-white transition-colors"
+            className="text-slate-600/80 hover:text-slate-900 transition-colors"
           >
             Features
           </a>
           <a
             href="#capabilities"
-            className="text-blue-200/80 hover:text-white transition-colors"
+            className="text-slate-600/80 hover:text-slate-900 transition-colors"
           >
             Technology
           </a>
           <a
             href="#security"
-            className="text-blue-200/80 hover:text-white transition-colors"
+            className="text-slate-600/80 hover:text-slate-900 transition-colors"
           >
             Security
           </a>
@@ -136,19 +136,19 @@ export default function LandingPage() {
         <div className="flex items-center gap-2">
           {isAuthed ? (
             <Link to="/dashboard">
-              <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
+              <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
                 Go to Dashboard
               </button>
             </Link>
           ) : (
             <>
               <Link to="/login">
-                <button className="px-4 py-1.5 rounded-full text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition-all">
+                <button className="px-4 py-1.5 rounded-full text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-black/10 transition-all">
                   Sign In
                 </button>
               </Link>
               <Link to="/register">
-                <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
+                <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
                   Get Started
                 </button>
               </Link>
@@ -165,7 +165,7 @@ export default function LandingPage() {
             Retrieval-Augmented Generation Platform
           </div>
 
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-white leading-tight drop-shadow-md">
+          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 leading-tight drop-shadow-md">
             Intelligence grounded in{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-cyan-300">
               your knowledge
@@ -173,7 +173,7 @@ export default function LandingPage() {
             .
           </h1>
 
-          <p className="mx-auto max-w-2xl text-lg sm:text-xl leading-relaxed text-white drop-shadow-md">
+          <p className="mx-auto max-w-2xl text-lg sm:text-xl leading-relaxed text-slate-900 drop-shadow-md">
             A premium AI workspace that unifies document ingestion, hybrid
             semantic search, and grounded answers with verifiable citations —
             built for accuracy you can trust.
@@ -181,13 +181,13 @@ export default function LandingPage() {
 
           <div className="flex items-center justify-center gap-4 pt-4 flex-wrap">
             <Link to="/register">
-              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-xl shadow-blue-900/50 hover:-translate-y-0.5 transition-all">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-xl shadow-blue-900/50 hover:-translate-y-0.5 transition-all">
                 Start Building Free
                 <ArrowRight className="w-4 h-4" />
               </button>
             </Link>
             <a href="#features">
-              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold text-white border border-white/20 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 transition-all">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold text-slate-900 border border-black/20 bg-black/5 hover:bg-black/10 hover:-translate-y-0.5 transition-all">
                 See Features
               </button>
             </a>
@@ -202,7 +202,7 @@ export default function LandingPage() {
         className="relative z-10 py-32 px-6 lg:px-8 max-w-7xl mx-auto"
       >
         <div className="mb-16 text-center">
-          <h2 className="text-4xl font-bold tracking-tight sm:text-4xl text-white drop-shadow-lg">
+          <h2 className="text-4xl font-bold tracking-tight sm:text-4xl text-slate-900 drop-shadow-lg">
             Everything you need
           </h2>
           <p className="mt-4 text-blue-600/80 text-lg drop-shadow-md">
@@ -247,7 +247,7 @@ export default function LandingPage() {
               className="feature-card rounded-2xl p-6 border transition-all duration-300 hover:-translate-y-1"
               style={{
                 background: "rgba(255,255,255,0.04)",
-                borderColor: "rgba(255,255,255,0.1)",
+                borderColor: "rgba(0,0,0,0.1)",
                 backdropFilter: "blur(12px)",
               }}
               onMouseEnter={(e) => {
@@ -255,14 +255,14 @@ export default function LandingPage() {
                 e.currentTarget.style.background = "rgba(99,179,237,0.07)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)";
                 e.currentTarget.style.background = "rgba(255,255,255,0.04)";
               }}
             >
               <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center mb-4 border border-blue-400/20 drop-shadow-md">
                 {f.icon}
               </div>
-              <h3 className="text-base font-semibold mb-2 text-white drop-shadow-lg">
+              <h3 className="text-base font-semibold mb-2 text-slate-900 drop-shadow-lg">
                 {f.title}
               </h3>
               <p className="text-sm text-blue-600/70 drop-shadow-md leading-relaxed">
@@ -284,10 +284,10 @@ export default function LandingPage() {
         }}
       >
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <h2 className="text-3xl font-bold tracking-tight text-white">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900">
             Powered by cutting-edge AI
           </h2>
-          <p className="text-blue-200 drop-shadow-md text-lg">
+          <p className="text-slate-600 drop-shadow-md text-lg">
             A complete RAG pipeline with hybrid retrieval, reranking, and
             generation.
           </p>
@@ -304,7 +304,7 @@ export default function LandingPage() {
             ].map((tag) => (
               <span
                 key={tag}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-blue-200 border"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-white border"
                 style={{
                   background: "rgba(19, 85, 190, 1)",
                   borderColor: "rgba(3, 146, 248, 1)",
@@ -323,10 +323,10 @@ export default function LandingPage() {
         className="relative z-10 py-24 px-6 max-w-4xl mx-auto text-center"
       >
         <Shield className="h-12 w-12 text-blue-400 mx-auto mb-4" />
-        <h2 className="text-3xl font-bold tracking-tight text-white mb-4">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900 mb-4">
           Built for security
         </h2>
-        <p className="text-blue-200/70 mb-10">
+        <p className="text-slate-600/70 mb-10">
           Your documents never mix. Every user operates in strict isolation.
         </p>
         <div className="grid sm:grid-cols-3 gap-6">
@@ -349,10 +349,10 @@ export default function LandingPage() {
               className="p-5 rounded-xl text-left"
               style={{
                 background: "rgba(255, 255, 255, 0.19)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid rgba(0,0,0,0.1)",
               }}
             >
-              <h3 className="font-semibold text-sm text-white drop-shadow-lg mb-1.5">
+              <h3 className="font-semibold text-sm text-slate-900 drop-shadow-lg mb-1.5">
                 {item.title}
               </h3>
               <p className="text-xs text-blue-600/60 drop-shadow-md leading-relaxed">
@@ -374,21 +374,21 @@ export default function LandingPage() {
           }}
         >
           <Brain className="h-10 w-10 text-blue-400 mx-auto mb-4" />
-          <h2 className="text-3xl font-bold text-white mb-4">
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">
             Ready to get started?
           </h2>
-          <p className="text-blue-200/70 mb-8">
+          <p className="text-slate-600/70 mb-8">
             Create your free workspace in seconds. No credit card required.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link to="/register">
-              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-white hover:bg-blue-400 shadow-xl shadow-blue-900/50 transition-all">
+              <button className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-base font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-xl shadow-blue-900/50 transition-all">
                 Create free account
                 <ArrowRight className="w-4 h-4" />
               </button>
             </Link>
             <Link to="/login">
-              <button className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-medium text-blue-100 border border-white/20 hover:bg-white/10 transition-all">
+              <button className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-medium text-slate-700 border border-black/20 hover:bg-black/10 transition-all">
                 Sign in
               </button>
             </Link>
@@ -407,7 +407,7 @@ export default function LandingPage() {
             alt="Logo"
             className="h-5 w-5 rounded opacity-80"
           />
-          <span className="font-medium text-white/70">RAGNexus</span>
+          <span className="font-medium text-slate-900/70">RAGNexus</span>
         </div>
         <p>
           © {new Date().getFullYear()} RAGNexus. Built with precision for

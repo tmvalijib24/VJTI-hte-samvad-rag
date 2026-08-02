@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/button'
-import brandLogo from '../assets/hero.png'
+import { Scene } from '../components/canvas/Scene'
+import gsap from 'gsap'
 
 export default function RegisterPage() {
   const { persistAuth, API_URL, readJsonOrText } = useAuth()
@@ -12,6 +13,25 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  
+  const cardRef = useRef(null)
+  const formRef = useRef(null)
+
+  useEffect(() => {
+    // Card slide up and fade in
+    gsap.fromTo(cardRef.current,
+      { y: 40, opacity: 0 },
+      { y: 0, opacity: 1, duration: 1, ease: "power3.out" }
+    );
+    
+    // Stagger form elements
+    if (formRef.current) {
+      gsap.fromTo(formRef.current.children,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.8, stagger: 0.1, ease: "power3.out", delay: 0.2 }
+      );
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -36,45 +56,64 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
-      {/* Decorative background */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute top-[-10%] left-[-5%] w-96 h-96 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 rounded-full bg-secondary/40 blur-3xl" />
-      </div>
+    <div 
+      className="min-h-screen flex items-center justify-center relative overflow-hidden font-sans"
+    >
+      {/* Animated Three.js Background */}
+      <Scene mode="particles" />
+      
+      {/* Subtle overlay for legibility */}
+      <div 
+        className="pointer-events-none fixed inset-0 z-[1]"
+        style={{ background: "radial-gradient(circle at center, transparent 30%, rgba(7,15,31,0.7) 100%)" }}
+      />
 
-      <div className="w-full max-w-md px-6">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <img src={brandLogo} alt="RAGNexus" className="w-10 h-10 rounded-xl shadow-md" />
-            <span className="text-2xl font-bold text-foreground tracking-tight">RAGNexus</span>
+      <div className="relative z-10 w-full max-w-md px-6 my-10">
+        {/* Floating Glass Card */}
+        <div 
+          ref={cardRef}
+          className="w-full rounded-3xl p-8 sm:p-10 shadow-2xl backdrop-blur-md"
+          style={{
+            backgroundColor: "rgba(15,23,42,0.72)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 0 40px rgba(59, 130, 246, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.02)"
+          }}
+        >
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold tracking-tight mb-2" style={{ color: "#FFFFFF" }}>
+              Create your account
+            </h1>
+            <p className="text-sm" style={{ color: "#CBD5E1" }}>
+              Start using the AI workspace in seconds.
+            </p>
           </div>
-          <p className="text-muted-foreground text-sm">Create your free workspace</p>
-        </div>
 
-        {/* Card */}
-        <div className="bg-card/80 backdrop-blur-xl border border-border/60 rounded-2xl shadow-xl p-8">
-          <h1 className="text-xl font-bold text-foreground mb-6">Get started free</h1>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-name">
-                Full name <span className="text-muted-foreground font-normal">(optional)</span>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "#FFFFFF" }} htmlFor="reg-name">
+                Full name <span style={{ color: "#94A3B8", fontWeight: "normal" }}>(optional)</span>
               </label>
               <input
                 id="reg-name"
                 type="text"
                 autoComplete="name"
-                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className="w-full h-12 rounded-xl px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: "#0B1428",
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderWidth: "1px",
+                  color: "#FFFFFF",
+                  '--tw-ring-color': "rgba(59, 130, 246, 0.5)"
+                }}
                 placeholder="Your name"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 disabled={busy}
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-email">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "#FFFFFF" }} htmlFor="reg-email">
                 Email address
               </label>
               <input
@@ -82,23 +121,38 @@ export default function RegisterPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className="w-full h-12 rounded-xl px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: "#0B1428",
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderWidth: "1px",
+                  color: "#FFFFFF",
+                  '--tw-ring-color': "rgba(59, 130, 246, 0.5)"
+                }}
                 placeholder="you@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 disabled={busy}
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-password">
-                Password <span className="text-muted-foreground font-normal">(min 8 chars)</span>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "#FFFFFF" }} htmlFor="reg-password">
+                Password <span style={{ color: "#94A3B8", fontWeight: "normal" }}>(min 8 chars)</span>
               </label>
               <input
                 id="reg-password"
                 type="password"
                 autoComplete="new-password"
                 required
-                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className="w-full h-12 rounded-xl px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: "#0B1428",
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderWidth: "1px",
+                  color: "#FFFFFF",
+                  '--tw-ring-color': "rgba(59, 130, 246, 0.5)"
+                }}
                 placeholder="••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -107,37 +161,53 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+              <div 
+                className="text-sm rounded-xl px-4 py-3"
+                style={{ backgroundColor: "rgba(239, 68, 68, 0.1)", color: "#FCA5A5", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+              >
                 {error}
               </div>
             )}
 
             <Button
               type="submit"
-              className="w-full h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg shadow transition-all"
+              className="w-full h-12 font-semibold rounded-xl transition-all duration-300 transform hover:-translate-y-0.5"
+              style={{
+                backgroundColor: "#3B82F6",
+                color: "#FFFFFF",
+                boxShadow: "0 4px 14px 0 rgba(59, 130, 246, 0.39)"
+              }}
               disabled={busy}
             >
               {busy ? (
                 <span className="flex items-center gap-2">
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   Creating account…
                 </span>
               ) : 'Create account'}
             </Button>
+
+            <div className="mt-8 text-center text-sm" style={{ color: "#94A3B8" }}>
+              Already have an account?{' '}
+              <Link 
+                to="/login" 
+                className="font-medium transition-colors hover:underline"
+                style={{ color: "#60A5FA" }}
+              >
+                Sign in
+              </Link>
+            </div>
+            
+            <div className="text-center pt-2">
+              <Link 
+                to="/" 
+                className="text-sm transition-colors hover:underline"
+                style={{ color: "#94A3B8" }}
+              >
+                ← Back to home
+              </Link>
+            </div>
           </form>
-
-          <div className="mt-6 pt-5 border-t border-border/50 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-primary hover:text-primary/80 transition-colors">
-              Sign in
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-6 text-center">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            ← Back to home
-          </Link>
         </div>
       </div>
     </div>

@@ -103,7 +103,7 @@ export function HeroOrb() {
     
     // 1. Stretch based on fall velocity (simulating drag)
     // velocityY.current is positive when falling down
-    const stretch = Math.max(0, Math.min(velocityY.current * 0.4, 0.6));
+    const stretch = Math.max(0, Math.min(velocityY.current * 0.8, 1.2));
     
     // 2. Compress when hitting the surface (last 8% of progress)
     let compression = 0;
@@ -115,9 +115,9 @@ export function HeroOrb() {
 
     // Combine stretch and compression
     // X and Z shrink when stretched, expand when compressed
-    const scaleXZ = 1.5 * (1 - stretch * 0.3 + compression * 0.5);
+    const scaleXZ = 1.5 * (1 - stretch * 0.45 + compression * 0.5);
     // Y expands when stretched, shrinks when compressed
-    const scaleY = 1.5 * (1 + stretch * 0.8 - compression * 0.6);
+    const scaleY = 1.5 * (1 + stretch * 1.4 - compression * 0.6);
 
     mesh.current.scale.set(scaleXZ, scaleY, scaleXZ);
 
