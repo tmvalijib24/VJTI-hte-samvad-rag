@@ -23,7 +23,7 @@ import { useAuth } from "../context/AuthContext";
 gsap.registerPlugin(ScrollTrigger);
 
 export default function LandingPage() {
-  const { isAuthed } = useAuth();
+  const { isAuthed, clearAuth } = useAuth();
   const containerRef = useRef(null);
   const heroTextRef = useRef(null);
   const featuresRef = useRef(null);
@@ -135,11 +135,19 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-2">
           {isAuthed ? (
-            <Link to="/dashboard">
-              <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
-                Go to Dashboard
+            <>
+              <button 
+                onClick={clearAuth}
+                className="px-4 py-1.5 rounded-full text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-black/10 transition-all"
+              >
+                Log Out
               </button>
-            </Link>
+              <Link to="/dashboard">
+                <button className="px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-500 text-slate-900 hover:bg-blue-400 shadow-lg shadow-blue-900/40 transition-all">
+                  Go to Dashboard
+                </button>
+              </Link>
+            </>
           ) : (
             <>
               <Link to="/login">

@@ -18,8 +18,11 @@ import os
 from threading import Lock
 
 
-# Disable OneDNN backend
-os.environ.setdefault("FLAGS_use_mkldnn", "0")
+# Disable OneDNN backend and new PIR API which causes crashes on Windows
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["FLAGS_enable_pir_api"] = "0"
+os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+os.environ["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "False"
 
 
 logger = logging.getLogger(__name__)
@@ -85,11 +88,10 @@ def _get_ocr():
         _ocr_instance = PaddleOCR(
             text_detection_model_name="PP-OCRv5_mobile_det",
             text_recognition_model_name="devanagari_PP-OCRv5_mobile_rec",
-
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
-)
+        )
 
 
         logger.info("PaddleOCR model loaded successfully.")

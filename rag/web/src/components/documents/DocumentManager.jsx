@@ -1,9 +1,15 @@
-import React, { useRef, useState } from 'react'
-import { UploadCloud, Trash2, File as FileIcon, CheckCircle, XCircle } from 'lucide-react'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Card } from '../ui/card'
-import { Badge } from '../ui/badge'
+import React, { useRef, useState } from "react";
+import {
+  UploadCloud,
+  Trash2,
+  File as FileIcon,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Card } from "../ui/card";
+import { Badge } from "../ui/badge";
 
 export function DocumentManager({
   documents,
@@ -17,39 +23,41 @@ export function DocumentManager({
   setUrl,
   files,
   setFiles,
-  submitUpload
+  submitUpload,
 }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const fileInputRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleDragOver = (e) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
+    e.preventDefault();
+    setIsDragging(true);
+  };
 
   const handleDragLeave = () => {
-    setIsDragging(false)
-  }
+    setIsDragging(false);
+  };
 
   const handleDrop = (e) => {
-    e.preventDefault()
-    setIsDragging(false)
+    e.preventDefault();
+    setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFiles(Array.from(e.dataTransfer.files))
+      setFiles(Array.from(e.dataTransfer.files));
     }
-  }
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files) {
-      setFiles(Array.from(e.target.files))
+      setFiles(Array.from(e.target.files));
     }
-  }
+  };
 
   const toggleSelection = (docId) => {
-    setSelectedDocIds(prev => 
-      prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
-    )
-  }
+    setSelectedDocIds((prev) =>
+      prev.includes(docId)
+        ? prev.filter((id) => id !== docId)
+        : [...prev, docId],
+    );
+  };
 
   return (
     <div className="w-80 flex-shrink-0 border-l border-border/50 bg-background/40 backdrop-blur-xl h-screen overflow-y-auto hidden lg:block z-10 relative">
@@ -57,17 +65,27 @@ export function DocumentManager({
         <div>
           <h3 className="text-sm font-semibold mb-3 flex items-center justify-between">
             Knowledge Base
-            <Badge variant="secondary" className="font-normal text-xs">{documents.length}</Badge>
+            <Badge variant="secondary" className="font-normal text-xs">
+              {documents.length}
+            </Badge>
           </h3>
 
-          <form onSubmit={(e) => { e.preventDefault(); submitUpload() }} className="space-y-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitUpload();
+            }}
+            className="space-y-3"
+          >
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
               className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-300 ${
-                isDragging ? 'border-accent bg-accent/5 scale-[1.02]' : 'border-border/60 hover:border-accent/50 hover:bg-secondary/20'
+                isDragging
+                  ? "border-accent bg-accent/5 scale-[1.02]"
+                  : "border-border/60 hover:border-accent/50 hover:bg-secondary/20"
               }`}
             >
               <input
@@ -79,11 +97,15 @@ export function DocumentManager({
                 disabled={isBusy}
               />
               <div className="flex justify-center mb-2">
-                <UploadCloud className={`w-8 h-8 ${isDragging ? 'text-accent' : 'text-muted-foreground'}`} />
+                <UploadCloud
+                  className={`w-8 h-8 ${isDragging ? "text-accent" : "text-muted-foreground"}`}
+                />
               </div>
               <p className="text-sm font-medium">Click or drag files here</p>
-              <p className="text-xs text-muted-foreground mt-1">PDF, TXT, CSV up to 10MB</p>
-              
+              <p className="text-xs text-muted-foreground mt-1">
+                PDF, TXT, CSV up to 10MB
+              </p>
+
               {files.length > 0 && (
                 <div className="mt-3 text-xs font-semibold text-accent bg-accent/10 py-1 px-2 rounded-md truncate">
                   {files.length} file(s) selected
@@ -102,13 +124,19 @@ export function DocumentManager({
               />
             </div>
 
-            <Button type="submit" disabled={isBusy || (files.length === 0 && !url)} className="w-full h-9 shadow-sm hover:shadow">
+            <Button
+              type="submit"
+              disabled={isBusy || (files.length === 0 && !url)}
+              className="w-full h-9 shadow-sm hover:shadow"
+            >
               {isBusy ? (
-                 <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2">
                   <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   Uploading...
                 </span>
-              ) : 'Upload to Knowledge Base'}
+              ) : (
+                "Upload to Knowledge Base"
+              )}
             </Button>
           </form>
 
@@ -136,45 +164,54 @@ export function DocumentManager({
                 No documents found.
               </div>
             ) : (
-              documents.map(doc => {
-                const isSelected = selectedDocIds.includes(doc.id)
+              documents.map((doc) => {
+                const isSelected = selectedDocIds.includes(doc.id);
                 return (
-                  <Card 
-                    key={doc.id} 
-                    className={`p-3 flex items-start gap-3 cursor-pointer transition-all duration-200 border ${
-                      isSelected 
-                        ? 'border-accent bg-accent/5 shadow-sm' 
-                        : 'border-border/40 hover:border-border/80 hover:bg-secondary/30 bg-background/50'
+                  <Card
+                    key={doc.id}
+                    className={`p-3 flex items-start gap-3 transition-all duration-200 border ${
+                      isSelected
+                        ? "border-accent bg-accent/5 shadow-sm"
+                        : "border-border/40 hover:border-border/80 hover:bg-secondary/30 bg-background/50"
                     }`}
-                    onClick={() => toggleSelection(doc.id)}
                   >
-                    <div className="pt-0.5">
-                      <FileIcon className={`w-4 h-4 ${isSelected ? 'text-accent' : 'text-muted-foreground'}`} />
+                    <div className="pt-0.5 flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        onChange={() => toggleSelection(doc.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer mt-0.5"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" title={doc.title || doc.source}>{doc.title || doc.source}</p>
+                      <p
+                        className="text-sm font-medium truncate"
+                        title={doc.title || doc.source}
+                      >
+                        {doc.title || doc.source}
+                      </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {new Date(doc.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive opacity-50 hover:opacity-100 transition-opacity"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        deleteDocument(doc.id)
+                        e.stopPropagation();
+                        deleteDocument(doc.id);
                       }}
                     >
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </Card>
-                )
+                );
               })
             )}
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
