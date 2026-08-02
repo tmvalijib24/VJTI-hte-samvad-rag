@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { MessageSquare, Upload, History, FileText, Plus, Bot, Clock } from 'lucide-react'
+import { MessageSquare, Upload, History, FileText, Plus, Bot, Clock, Trash2 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 
 export default function DashboardPage({
@@ -8,6 +8,7 @@ export default function DashboardPage({
   documents,
   openSession,
   askMode,
+  deleteSession,
 }) {
   const navigate = useNavigate()
   const { userInfo, clearAuth } = useAuth()
@@ -115,27 +116,37 @@ export default function DashboardPage({
           ) : (
             <div className="space-y-2">
               {recentSessions.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => { openSession(s); navigate('/chat') }}
-                  className="w-full flex items-center gap-3 p-3.5 bg-card border border-border/40 rounded-xl text-left hover:border-primary/30 hover:bg-primary/5 transition-all"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                    {s.mode === 'document' ? <FileText className="w-4 h-4 text-primary" /> : <MessageSquare className="w-4 h-4 text-muted-foreground" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-foreground truncate">
-                      {s.title || (s.mode === 'document' ? 'Document chat' : 'Basic chat')}
+                <div key={s.id} className="relative group w-full flex items-center p-3.5 bg-card border border-border/40 rounded-xl hover:border-primary/30 hover:bg-primary/5 transition-all">
+                  <button
+                    onClick={() => { openSession(s); navigate('/chat') }}
+                    className="flex-1 min-w-0 flex items-center gap-3 text-left"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                      {s.mode === 'document' ? <FileText className="w-4 h-4 text-primary" /> : <MessageSquare className="w-4 h-4 text-muted-foreground" />}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" />
-                      {formatDate(s.updated_at)}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-foreground truncate">
+                        {s.title || (s.mode === 'document' ? 'Document chat' : 'Basic chat')}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(s.updated_at)}
+                      </div>
                     </div>
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0 pl-2">
+                    <div className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                      {s.mode}
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); deleteSession(s); }}
+                      className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full shrink-0">
-                    {s.mode}
-                  </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
