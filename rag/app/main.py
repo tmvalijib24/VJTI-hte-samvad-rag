@@ -795,6 +795,43 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
+class CompareRequest(BaseModel):
+    documentIdA: str
+    documentIdB: str
+
+class ExplainChangeRequest(BaseModel):
+    textA: Optional[str] = None
+    textB: Optional[str] = None
+
+@app.get("/documents/{document_id}/linked")
+@limiter.limit("20/minute")
+async def get_linked_documents(request: Request, document_id: str, user: User = Depends(get_current_user)):
+    # Stub for v1: return empty array for superseded_by / amended_by links
+    return {"linked": []}
+
+@app.post("/compare")
+@limiter.limit("10/minute")
+async def compare_documents(request: Request, req: CompareRequest, user: User = Depends(get_current_user)):
+    from app.api.compare_service import align_and_compare_documents
+    try:
+        # Documents are shared across all tenants
+        result = align_and_compare_documents(doc_a_id=req.documentIdA, doc_b_id=req.documentIdB, tenant_id=None)
+        return result
+    except Exception as e:
+        logger.error(f"Error comparing documents: {e}")
+        raise HTTPException(status_code=500, detail="Failed to compare documents.")
+
+@app.post("/compare/explain-change")
+@limiter.limit("20/minute")
+async def compare_explain_change(request: Request, req: ExplainChangeRequest, user: User = Depends(get_current_user)):
+    from app.api.compare_service import explain_change
+    try:
+        explanation = explain_change(req.textA, req.textB)
+        return {"explanation": explanation}
+    except Exception as e:
+        logger.error(f"Error explaining change: {e}")
+        raise HTTPException(status_code=500, detail="Failed to explain change.")
+
 
 @app.post("/chat/basic")
 @limiter.limit(RATE_LIMIT_CHAT)

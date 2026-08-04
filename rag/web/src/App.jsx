@@ -14,6 +14,7 @@ import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
 import ReviewerPage from './pages/ReviewerPage'
 import AdminPage from './pages/AdminPage'
+import ComparePage from './pages/ComparePage'
 
 // Inner app that has access to AuthContext
 function InnerApp() {
@@ -257,6 +258,8 @@ function InnerApp() {
     setStatus,
     canManageDocuments: userRole !== 'desk_officer',
     canUseBasicChat: userRole !== 'desk_officer',
+    switchAskMode,
+    startNewChat,
   }
 
   return (
@@ -315,6 +318,7 @@ function InnerApp() {
               setStatus={setStatus}
             />
           } />
+          <Route path="/compare" element={<ComparePage {...sharedProps} />} />
           <Route path="/reviewer" element={
             !profileLoaded ? (
               <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading review workspace…</div>

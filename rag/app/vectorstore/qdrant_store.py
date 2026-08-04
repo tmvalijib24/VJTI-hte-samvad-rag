@@ -126,6 +126,22 @@ class QdrantStore:
 
         return results
 
+    def get_document_vectors(self, document_id: str, tenant_id: str = None):
+        from qdrant_client.models import FieldCondition, MatchValue, Filter
+        self._ensure_collection()
+        
+        must_conditions = [FieldCondition(key="document_id", match=MatchValue(value=document_id))]
+        if tenant_id:
+            must_conditions.append(FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id)))
+            
+        records, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=Filter(must=must_conditions),
+            with_vectors=True,
+            limit=10000
+        )
+        return records
+
     def delete_document(self, tenant_id: str, document_id: str):
         from qdrant_client.models import FieldCondition, MatchValue, Filter
         self._ensure_collection()

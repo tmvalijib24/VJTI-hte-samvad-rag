@@ -1,7 +1,7 @@
 import React from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Button } from '../ui/button'
-import { LogOut, Plus, FileText, MessageSquare, Trash2, Edit2, LayoutDashboard, History, Settings } from 'lucide-react'
+import { LogOut, Plus, FileText, MessageSquare, Trash2, Edit2, LayoutDashboard, History, Settings, GitCompare } from 'lucide-react'
 import { ScrollArea } from '../ui/scroll-area'
 
 export function Sidebar({
@@ -25,15 +25,16 @@ export function Sidebar({
     { icon: <LayoutDashboard className="w-4 h-4" />, label: 'Dashboard', path: '/dashboard' },
     { icon: <MessageSquare className="w-4 h-4" />, label: 'Chat', path: '/chat' },
     { icon: <FileText className="w-4 h-4" />, label: 'Documents', path: '/documents' },
+    { icon: <GitCompare className="w-4 h-4" />, label: 'Compare', path: '/compare' },
     { icon: <History className="w-4 h-4" />, label: 'History', path: '/history' },
     { icon: <Settings className="w-4 h-4" />, label: 'Settings', path: '/settings' },
   ]
 
   if (userRole === 'legal_reviewer' || userRole === 'system_admin') {
-    navItems.splice(2, 0, { icon: <FileText className="w-4 h-4" />, label: 'Review Queue', path: '/reviewer' })
+    navItems.splice(3, 0, { icon: <FileText className="w-4 h-4" />, label: 'Review Queue', path: '/reviewer' })
   }
   if (userRole === 'system_admin') {
-    navItems.splice(3, 0, { icon: <Settings className="w-4 h-4" />, label: 'Admin Console', path: '/admin' })
+    navItems.splice(5, 0, { icon: <Settings className="w-4 h-4" />, label: 'Admin Console', path: '/admin' })
   }
 
   return (
