@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import uuid
 from dataclasses import dataclass
@@ -36,17 +37,66 @@ def _json_number(value: Any):
         item = None
     if callable(item):
         try:
-            return value.item()
+            value = value.item()
         except Exception:
             pass
     # Fall back to float/int where possible
     if isinstance(value, (int, float)):
-        return value
+        if math.isfinite(value):
+            return value
+        return None  # NaN / Infinity are invalid in JSON
     try:
-        return float(value)
+        f = float(value)
+        return f if math.isfinite(f) else None
     except Exception:
         return None
 
+
+_GENERIC_TITLES = {
+    "document chat", "chat session", "new chat", "conversation",
+    "untitled chat", "basic chat",
+}
+
+_STOP_WORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "what", "how", "why",
+    "when", "where", "who", "which", "do", "does", "did", "can", "could",
+    "would", "should", "will", "shall", "has", "have", "had", "be", "been",
+    "being", "of", "in", "to", "for", "on", "with", "at", "by", "from",
+    "about", "into", "through", "and", "or", "but", "not", "no", "so",
+    "if", "then", "than", "that", "this", "it", "its", "my", "your",
+    "me", "i", "we", "you", "they", "he", "she", "us", "them", "please",
+}
+
+
+def _fallback_title(message: str) -> str:
+    """Extract the first 5-7 meaningful words as a fallback title."""
+    words = message.split()
+    meaningful = [w for w in words if w.lower().strip("?!.,;:") not in _STOP_WORDS]
+    if not meaningful:
+        meaningful = words
+    title_words = meaningful[:7]
+    title = " ".join(title_words)
+    if len(title) > 40:
+        title = title[:37].rsplit(" ", 1)[0] + "..."
+    return title.strip() or message[:40].strip()
+
+
+def generate_chat_title(message: str) -> str:
+    """Generate a meaningful chat title using LLM with a fallback."""
+    text = (message or "").strip()
+    if not text:
+        return "New Chat"
+
+    from app.generation.generator import Generator
+    generator = Generator()
+    title = generator.generate_title(text)
+
+    # Reject generic titles
+    if title and title.lower() not in _GENERIC_TITLES:
+        return title
+
+    # Fallback: extract meaningful words
+    return _fallback_title(text)
 
 def answer_basic_message(message: str, chat_history: List[Dict[str, str]] | None = None) -> str:
     """Use Groq free model for general basic chat mode."""
@@ -221,11 +271,13 @@ def answer_question(
 
 # Reject weak retrievals
     MIN_SCORE = 0.35
+    _top_score = selected[0].get("score") if selected else None
 
     if (
             not selected
-            or selected[0].get("score") is None
-            or float(selected[0]["score"]) < MIN_SCORE
+            or _top_score is None
+            or not math.isfinite(float(_top_score))
+            or float(_top_score) < MIN_SCORE
     ):
             return {
                 "answer": "I couldn't find the answer in the selected document(s).",

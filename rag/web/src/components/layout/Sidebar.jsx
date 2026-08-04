@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
+import gsap from 'gsap'
 import { Button } from '../ui/button'
 import { LogOut, Plus, FileText, MessageSquare, Trash2, Edit2, LayoutDashboard, History, Settings, GitCompare } from 'lucide-react'
 import { ScrollArea } from '../ui/scroll-area'
@@ -20,6 +21,45 @@ export function Sidebar({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const prevSessionIdsRef = useRef(new Set())
+  const sessionListRef = useRef(null)
+
+  useEffect(() => {
+    const currentIds = new Set(chatSessions.map(s => s.id))
+    const prevIds = prevSessionIdsRef.current
+
+    if (prevIds.size > 0 && sessionListRef.current) {
+      const newIds = [...currentIds].filter(id => !prevIds.has(id))
+      if (newIds.length > 0) {
+        const container = sessionListRef.current
+        newIds.forEach(id => {
+          const el = container.querySelector(`[data-session-id="${id}"]`)
+          if (el) {
+            gsap.fromTo(el,
+              { opacity: 0, y: -10 },
+              { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+            )
+          }
+        })
+      } else {
+        // Sessions updated (e.g. title changed) — animate title text
+        chatSessions.forEach(s => {
+          const prev = [...prevIds]
+          if (prev.includes(s.id)) {
+            const el = sessionListRef.current?.querySelector(`[data-session-id="${s.id}"] .session-title`)
+            if (el) {
+              gsap.fromTo(el,
+                { opacity: 0.5 },
+                { opacity: 1, duration: 0.3, ease: 'power2.out' }
+              )
+            }
+          }
+        })
+      }
+    }
+
+    prevSessionIdsRef.current = currentIds
+  }, [chatSessions])
 
   const navItems = [
     { icon: <LayoutDashboard className="w-4 h-4" />, label: 'Dashboard', path: '/dashboard' },
@@ -125,10 +165,11 @@ export function Sidebar({
           Recent Chats
         </div>
         <ScrollArea className="flex-1 px-3">
-          <div className="space-y-0.5 pb-4">
+          <div ref={sessionListRef} className="space-y-0.5 pb-4">
             {chatSessions.map((session) => (
               <div
                 key={session.id}
+                data-session-id={session.id}
                 className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
                   session.id === sessionId ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-secondary/50 text-foreground'
                 }`}
@@ -136,8 +177,8 @@ export function Sidebar({
               >
                 <div className="flex items-center gap-2 overflow-hidden">
                   <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
-                  <div className="truncate text-xs">
-                    {session.title || (session.mode === 'document' ? 'Document chat' : 'Basic chat')}
+                  <div className="truncate text-xs session-title">
+                    {session.title || 'New Chat'}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

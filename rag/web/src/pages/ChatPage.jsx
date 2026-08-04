@@ -49,7 +49,7 @@ export default function ChatPage({
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
 
-  async function openDocument(doc) {
+  async function downloadDocument(doc) {
     if (!doc?.id) return
     if (doc.source?.startsWith('http://') || doc.source?.startsWith('https://')) {
       window.open(doc.source, '_blank', 'noopener,noreferrer')
@@ -60,11 +60,20 @@ export default function ChatPage({
       const res = await apiFetch(`/documents/${doc.id}/download`)
       if (!res.ok) {
         const { json, text } = await readJsonOrText(res)
-        throw new Error(json?.detail || text || `Failed to open document (HTTP ${res.status}).`)
+        throw new Error(json?.detail || text || `Failed to download document (HTTP ${res.status}).`)
       }
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
-      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+
+      // Extract filename from source path or title
+      const filename = doc.title || (doc.source ? doc.source.split('/').pop().split('\\').pop() : 'document')
+
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
     } catch (e) {
       setError(e.message || String(e))
@@ -294,7 +303,7 @@ export default function ChatPage({
         setSelectedDocIds={setSelectedDocIds}
         deleteDocument={deleteDocument}
         canManageDocuments={canManageDocuments}
-        onDocumentClick={openDocument}
+        onDocumentDownload={downloadDocument}
         status={status}
         error={error}
         isBusy={isBusy}

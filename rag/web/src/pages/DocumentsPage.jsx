@@ -19,7 +19,7 @@ export default function DocumentsPage({
   const [url, setUrl] = useState('')
   const [files, setFiles] = useState([])
 
-  async function openDocument(doc) {
+  async function downloadDocument(doc) {
     if (!doc?.id) return
     if (doc.source?.startsWith('http://') || doc.source?.startsWith('https://')) {
       window.open(doc.source, '_blank', 'noopener,noreferrer')
@@ -30,11 +30,19 @@ export default function DocumentsPage({
       const res = await apiFetch(`/documents/${doc.id}/download`)
       if (!res.ok) {
         const { json, text } = await readJsonOrText(res)
-        throw new Error(json?.detail || text || `Failed to open document (HTTP ${res.status}).`)
+        throw new Error(json?.detail || text || `Failed to download document (HTTP ${res.status}).`)
       }
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
-      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+
+      const filename = doc.title || (doc.source ? doc.source.split('/').pop().split('\\').pop() : 'document')
+
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
     } catch (e) {
       setError(e.message || String(e))
@@ -121,7 +129,7 @@ export default function DocumentsPage({
           setSelectedDocIds={setSelectedDocIds}
           deleteDocument={deleteDocument}
           canManageDocuments={canManageDocuments}
-          onDocumentClick={openDocument}
+          onDocumentDownload={downloadDocument}
           fullPage
           status={status}
           error={error}
@@ -131,7 +139,6 @@ export default function DocumentsPage({
           files={files}
           setFiles={setFiles}
           submitUpload={e => { e?.preventDefault(); files.length > 0 ? ingestFile() : ingestUrl() }}
-          fullPage
         />
       </div>
     </div>

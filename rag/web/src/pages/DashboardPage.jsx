@@ -150,7 +150,7 @@ export default function DashboardPage({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm text-foreground truncate">
-                        {s.title || (s.mode === 'document' ? 'Document chat' : 'Basic chat')}
+                        {s.title || 'New Chat'}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
                         <Clock className="w-3 h-3" />

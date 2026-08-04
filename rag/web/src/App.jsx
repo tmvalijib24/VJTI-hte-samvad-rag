@@ -61,8 +61,7 @@ function InnerApp() {
   function sessionTitle(session) {
     const raw = String(session?.title || '').trim()
     if (raw) return raw
-    if (session?.mode === 'document') return 'Document chat'
-    return 'Basic chat'
+    return 'New Chat'
   }
 
   // ── Data loaders ──────────────────────────────────────────────────────────

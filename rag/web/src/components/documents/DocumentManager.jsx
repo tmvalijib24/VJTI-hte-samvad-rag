@@ -1,10 +1,14 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
+import gsap from "gsap";
 import {
   UploadCloud,
   Trash2,
   File as FileIcon,
   CheckCircle,
   XCircle,
+  Search,
+  X,
+  Download,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -18,6 +22,7 @@ export function DocumentManager({
   deleteDocument,
   canManageDocuments = false,
   onDocumentClick,
+  onDocumentDownload,
   fullPage = false,
   status,
   error,
@@ -29,7 +34,53 @@ export function DocumentManager({
   submitUpload,
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === "Escape") {
+        if (document.activeElement === searchInputRef.current) {
+          setSearchQuery("");
+          searchInputRef.current?.blur();
+        }
+      }
+    };
+    
+    // We attach it to the window but it only prevents default and focuses if panel is active/visible
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleSearchFocus = () => {
+    gsap.to(searchContainerRef.current, { scale: 1.02, duration: 0.2, ease: "power2.out" });
+  };
+  
+  const handleSearchBlur = () => {
+    gsap.to(searchContainerRef.current, { scale: 1, duration: 0.2, ease: "power2.out" });
+  };
+
+  const filteredDocuments = useMemo(() => {
+    if (!searchQuery.trim()) return documents;
+    
+    const query = searchQuery.toLowerCase();
+    return documents.filter(doc => {
+      return (
+        (doc.title && doc.title.toLowerCase().includes(query)) ||
+        (doc.source && doc.source.toLowerCase().includes(query)) ||
+        (doc.category && doc.category.toLowerCase().includes(query)) ||
+        (doc.department && doc.department.toLowerCase().includes(query)) ||
+        (doc.language && doc.language.toLowerCase().includes(query))
+      );
+    });
+  }, [documents, searchQuery]);
+
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -72,6 +123,34 @@ export function DocumentManager({
               {documents.length}
             </Badge>
           </h3>
+
+          <div 
+            ref={searchContainerRef} 
+            className="relative mb-6"
+          >
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+              className="pl-9 pr-9 bg-background/40 backdrop-blur-md border-border/50 hover:border-accent/50 focus:border-accent focus:ring-accent rounded-xl h-10 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
           {canManageDocuments ? (
             <form
@@ -164,20 +243,18 @@ export function DocumentManager({
             Available Documents
           </h4>
           <div className={fullPage ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
-            {documents.length === 0 ? (
-              <div className="text-center py-10 text-sm text-muted-foreground bg-secondary/20 rounded-2xl border border-dashed border-border/50 col-span-full">
-                No documents found.
+            {filteredDocuments.length === 0 ? (
+              <div className="text-center py-10 flex flex-col items-center gap-3 text-sm text-muted-foreground bg-secondary/20 rounded-2xl border border-dashed border-border/50 col-span-full">
+                <Search className="w-8 h-8 opacity-20" />
+                <p>No documents found.</p>
               </div>
             ) : (
-              documents.map((doc) => {
+              filteredDocuments.map((doc) => {
                 const isSelected = selectedDocIds.includes(doc.id);
                 return (
                   <Card
                     key={doc.id}
-                    onClick={() => onDocumentClick?.(doc)}
                     className={`p-4 flex flex-col gap-3 transition-all duration-200 border ${
-                      onDocumentClick ? 'cursor-pointer ' : ''
-                    }${
                       isSelected
                         ? "border-accent bg-accent/5 shadow-sm"
                         : "border-border/40 hover:border-border/80 hover:bg-secondary/30 bg-background/50"
@@ -220,9 +297,10 @@ export function DocumentManager({
                       <span>{doc.language || 'unspecified language'}</span>
                     </div>
                     <div className="flex items-center justify-end gap-2">
-                      {onDocumentClick ? (
-                        <Button variant="outline" size="sm" className="h-8 px-3" onClick={(e) => { e.stopPropagation(); onDocumentClick(doc) }}>
-                          Open
+                      {onDocumentDownload ? (
+                        <Button variant="outline" size="sm" className="h-8 px-3" onClick={(e) => { e.stopPropagation(); onDocumentDownload(doc) }}>
+                          <Download className="w-3 h-3 mr-1" />
+                          Download
                         </Button>
                       ) : null}
                       {canManageDocuments ? (

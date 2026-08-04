@@ -398,3 +398,49 @@ override the language of the current user message.
             .message
             .content
         )
+
+    def generate_title(self, message: str) -> str:
+        """
+        Generate a concise chat session title from the user's first message.
+        Returns a 3-8 word title (max 40 characters).
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Generate a concise chat title (3-8 words, maximum 40 characters) "
+                            "that summarizes the following user query. "
+                            "Return ONLY the title text, nothing else. "
+                            "Do not use quotes around the title. "
+                            "Do not use generic titles like 'Document Chat', 'Chat Session', "
+                            "'New Chat', 'Conversation', or 'Untitled Chat'. "
+                            "The title should describe the specific topic of the query."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": message,
+                    },
+                ],
+                temperature=0.3,
+                max_tokens=30,
+            )
+
+            title = (
+                response
+                .choices[0]
+                .message
+                .content
+                or ""
+            ).strip().strip('"\'')
+
+            # Enforce max length
+            if len(title) > 40:
+                title = title[:37].rsplit(" ", 1)[0] + "..."
+
+            return title if title else ""
+        except Exception:
+            return ""
