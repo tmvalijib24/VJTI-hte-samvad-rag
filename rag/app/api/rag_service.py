@@ -126,6 +126,7 @@ def ingest_and_index(user_id: str, source: str, title: str | None = None) -> Ing
 def answer_question(
     *,
     user_id: str,
+    user_role: str = "desk_officer",
     document_id: str | None = None,
     document_ids: List[str] | str | None = None,
     question: str,
@@ -153,13 +154,18 @@ def answer_question(
     store = QdrantStore()
     pg = PostgresStore()
 
+    privileged = user_role in {"system_admin", "legal_reviewer"}
+    shared_corpus = True
+
     if doc_uuids:
-        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids)
+        allowed_docs = pg.get_documents_by_ids(user_id=user_uuid, document_ids=doc_uuids, role=user_role, include_unapproved=False, scope_all=shared_corpus)
+        doc_uuids = [d.id for d in allowed_docs if d.status == "approved"]
+        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids, scope_all=shared_corpus)
     else:
-        # Default to searching all user's documents if none specified
-        docs = pg.list_documents(user_id=user_uuid)
+        # Default to searching approved documents visible to the current role
+        docs = pg.list_documents(user_id=user_uuid, role=user_role, include_unapproved=False, scope_all=shared_corpus)
         doc_uuids = [d.id for d in docs]
-        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids)
+        chunk_rows = pg.fetch_chunks_by_document_ids(user_id=user_uuid, document_ids=doc_uuids, scope_all=shared_corpus)
 
     if not chunk_rows:
         raise RuntimeError("No chunks found. Ingest document(s) first.")
@@ -174,11 +180,11 @@ def answer_question(
     expanded_query = hyde.expand(question)
 
     # Pass tenant_id and document list to hybrid search for multi-tenant and multi-document filtering
-    results = hybrid.search(expanded_query, tenant_id=str(user_uuid), document_ids=doc_uuids)
+    results = hybrid.search(expanded_query, tenant_id=None, document_ids=doc_uuids)
 
     # Fill missing text/page using Postgres rows and resolve document display names
     id_to_row = {str(r.id): r for r in chunk_rows}
-    docs = pg.get_documents_by_ids(user_id=user_uuid, document_ids=doc_uuids)
+    docs = pg.get_documents_by_ids(user_id=user_uuid, document_ids=doc_uuids, role=user_role, include_unapproved=False, scope_all=shared_corpus)
     doc_by_id = {
         str(d.id): (d.title or os.path.basename(d.source) or d.source)
         for d in docs

@@ -6,6 +6,7 @@ import { ScrollArea } from '../ui/scroll-area'
 
 export function Sidebar({
   userInfo,
+  userRole,
   brandLogo,
   chatSessions,
   sessionId,
@@ -28,8 +29,15 @@ export function Sidebar({
     { icon: <Settings className="w-4 h-4" />, label: 'Settings', path: '/settings' },
   ]
 
+  if (userRole === 'legal_reviewer' || userRole === 'system_admin') {
+    navItems.splice(2, 0, { icon: <FileText className="w-4 h-4" />, label: 'Review Queue', path: '/reviewer' })
+  }
+  if (userRole === 'system_admin') {
+    navItems.splice(3, 0, { icon: <Settings className="w-4 h-4" />, label: 'Admin Console', path: '/admin' })
+  }
+
   return (
-    <aside className="w-72 flex-shrink-0 flex flex-col h-screen border-r border-border/50 bg-background/60 backdrop-blur-xl z-10 relative">
+    <aside className="w-72 shrink-0 flex flex-col h-screen border-r border-border/50 bg-background/60 backdrop-blur-xl z-10 relative">
       {/* Logo header */}
       <div className="p-4 flex items-center justify-between border-b border-border/50">
         <Link to="/" className="flex items-center gap-2.5 overflow-hidden hover:opacity-80 transition-opacity">
@@ -77,7 +85,7 @@ export function Sidebar({
       </div>
 
       {/* Mode toggle — only on /chat */}
-      {location.pathname === '/chat' && (
+      {location.pathname === '/chat' && userRole !== 'desk_officer' && (
         <div className="px-3 py-3">
           <div className="bg-secondary/40 rounded-xl p-1 border border-border/50 flex">
             <button
@@ -98,6 +106,14 @@ export function Sidebar({
               <MessageSquare className="w-3.5 h-3.5" />
               Basic
             </button>
+          </div>
+        </div>
+      )}
+
+      {location.pathname === '/chat' && userRole === 'desk_officer' && (
+        <div className="px-3 py-3">
+          <div className="bg-secondary/40 rounded-xl p-3 border border-border/50 text-xs text-muted-foreground">
+            Document mode only for this account.
           </div>
         </div>
       )}

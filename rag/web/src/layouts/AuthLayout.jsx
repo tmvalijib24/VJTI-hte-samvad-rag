@@ -13,7 +13,7 @@ export function AuthLayout({
   askMode,
   switchAskMode,
 }) {
-  const { userInfo, clearAuth } = useAuth()
+  const { userInfo, userRole, clearAuth } = useAuth()
   const navigate = useNavigate()
 
   function handleClearAuth() {
@@ -25,6 +25,7 @@ export function AuthLayout({
     <div className="flex h-screen bg-background overflow-hidden font-sans text-foreground">
       <Sidebar
         userInfo={userInfo}
+        userRole={userRole}
         brandLogo={brandLogo}
         chatSessions={chatSessions}
         sessionId={sessionId}

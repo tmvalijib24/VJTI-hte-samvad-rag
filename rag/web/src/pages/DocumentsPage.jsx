@@ -7,6 +7,7 @@ export default function DocumentsPage({
   selectedDocIds,
   setSelectedDocIds,
   loadDocuments,
+  canManageDocuments = false,
   isBusy,
   setIsBusy,
   error,
@@ -17,6 +18,28 @@ export default function DocumentsPage({
   const { apiFetch, readJsonOrText } = useAuth()
   const [url, setUrl] = useState('')
   const [files, setFiles] = useState([])
+
+  async function openDocument(doc) {
+    if (!doc?.id) return
+    if (doc.source?.startsWith('http://') || doc.source?.startsWith('https://')) {
+      window.open(doc.source, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    try {
+      const res = await apiFetch(`/documents/${doc.id}/download`)
+      if (!res.ok) {
+        const { json, text } = await readJsonOrText(res)
+        throw new Error(json?.detail || text || `Failed to open document (HTTP ${res.status}).`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (e) {
+      setError(e.message || String(e))
+    }
+  }
 
   async function deleteDocument(documentId) {
     if (!window.confirm('Are you sure you want to delete this document?')) return
@@ -97,6 +120,9 @@ export default function DocumentsPage({
           selectedDocIds={selectedDocIds}
           setSelectedDocIds={setSelectedDocIds}
           deleteDocument={deleteDocument}
+          canManageDocuments={canManageDocuments}
+          onDocumentClick={openDocument}
+          fullPage
           status={status}
           error={error}
           isBusy={isBusy}

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
 const AuthContext = createContext(null)
 
@@ -14,6 +14,7 @@ export function AuthProvider({ children }) {
   })
 
   const isAuthed = Boolean(accessToken)
+  const [profileLoaded, setProfileLoaded] = useState(!isAuthed)
 
   function persistAuth(payload) {
     const nextAccess = payload?.access_token || ''
@@ -26,6 +27,39 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refresh_token', nextRefresh)
     localStorage.setItem('auth_user', JSON.stringify(nextUser || {}))
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function syncCurrentUser() {
+      if (!accessToken) {
+        setProfileLoaded(true)
+        return
+      }
+
+      setProfileLoaded(false)
+      try {
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        if (!res.ok) return
+        const payload = await res.json()
+        if (cancelled) return
+        const nextUser = payload?.user || null
+        setUserInfo(nextUser)
+        localStorage.setItem('auth_user', JSON.stringify(nextUser || {}))
+      } catch {
+        // Leave the existing session in place; apiFetch will still refresh on demand.
+      } finally {
+        if (!cancelled) setProfileLoaded(true)
+      }
+    }
+
+    syncCurrentUser()
+    return () => { cancelled = true }
+  }, [accessToken])
 
   const clearAuth = useCallback(() => {
     setAccessToken('')
@@ -81,6 +115,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       accessToken, refreshToken, userInfo,
+      userRole: userInfo?.role || 'desk_officer',
+      profileLoaded,
       isAuthed, persistAuth, clearAuth, apiFetch, readJsonOrText, API_URL
     }}>
       {children}

@@ -12,10 +12,12 @@ import ChatPage from './pages/ChatPage'
 import DocumentsPage from './pages/DocumentsPage'
 import HistoryPage from './pages/HistoryPage'
 import SettingsPage from './pages/SettingsPage'
+import ReviewerPage from './pages/ReviewerPage'
+import AdminPage from './pages/AdminPage'
 
 // Inner app that has access to AuthContext
 function InnerApp() {
-  const { isAuthed, apiFetch, readJsonOrText, clearAuth } = useAuth()
+  const { isAuthed, apiFetch, readJsonOrText, clearAuth, userRole, profileLoaded } = useAuth()
 
   // ── Shared state (chat, sessions, documents) ──────────────────────────────
   const [askMode, setAskMode] = useState('document')
@@ -82,8 +84,11 @@ function InnerApp() {
       const { json } = await readJsonOrText(res)
       if (!res.ok) throw new Error('Failed to load sessions')
       const sessions = Array.isArray(json?.sessions) ? json.sessions : []
-      setChatSessions(sessions)
-      return sessions
+      const visibleSessions = userRole === 'desk_officer'
+        ? sessions.filter(session => session.mode !== 'basic')
+        : sessions
+      setChatSessions(visibleSessions)
+      return visibleSessions
     } catch {
       setChatSessions([])
       return []
@@ -141,9 +146,13 @@ function InnerApp() {
     setError('')
     setStatus('')
     try {
+      const nextMode = askMode === 'document' ? 'document' : 'basic'
+      if (nextMode === 'basic' && userRole === 'desk_officer') {
+        throw new Error('Basic chat is available only for reviewer/admin accounts.')
+      }
       const payload = {
-        mode: askMode === 'document' ? 'document' : 'basic',
-        document_ids: askMode === 'document' ? selectedDocIds : [],
+        mode: nextMode,
+        document_ids: nextMode === 'document' ? selectedDocIds : [],
       }
       const res = await apiFetch('/chat/sessions', {
         method: 'POST',
@@ -161,6 +170,7 @@ function InnerApp() {
   }
 
   function switchAskMode(nextMode) {
+    if (nextMode === 'basic' && userRole === 'desk_officer') return
     if (nextMode === askMode) return
     setError('')
     setStatus('')
@@ -204,6 +214,12 @@ function InnerApp() {
     return () => { cancelled = true }
   }, [isAuthed])
 
+  useEffect(() => {
+    if (userRole === 'desk_officer' && askMode === 'basic') {
+      setAskMode('document')
+    }
+  }, [userRole, askMode])
+
   // Wake-up ping
   useEffect(() => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -239,6 +255,8 @@ function InnerApp() {
     setError,
     status,
     setStatus,
+    canManageDocuments: userRole !== 'desk_officer',
+    canUseBasicChat: userRole !== 'desk_officer',
   }
 
   return (
@@ -288,6 +306,7 @@ function InnerApp() {
               selectedDocIds={selectedDocIds}
               setSelectedDocIds={setSelectedDocIds}
               loadDocuments={loadDocuments}
+              canManageDocuments={userRole !== 'desk_officer'}
               isBusy={isBusy}
               setIsBusy={setIsBusy}
               error={error}
@@ -295,6 +314,24 @@ function InnerApp() {
               status={status}
               setStatus={setStatus}
             />
+          } />
+          <Route path="/reviewer" element={
+            !profileLoaded ? (
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading review workspace…</div>
+            ) : userRole === 'legal_reviewer' || userRole === 'system_admin' ? (
+              <ReviewerPage documents={documents} loadDocuments={loadDocuments} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          } />
+          <Route path="/admin" element={
+            !profileLoaded ? (
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Loading admin console…</div>
+            ) : userRole === 'system_admin' ? (
+              <AdminPage documents={documents} loadDocuments={loadDocuments} />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           } />
           <Route path="/history" element={
             <HistoryPage chatSessions={chatSessions} openSession={openSession} />
@@ -370,7 +407,7 @@ function InnerApp() {
 
 function SessionDialog({ sessionDialog, sessionTitleInput, setSessionTitleInput, sessionDialogBusy, sessionTitle, onClose, onSubmit }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-background/80 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="bg-card border border-border/50 rounded-2xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold text-foreground">

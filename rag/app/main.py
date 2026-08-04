@@ -1,4 +1,6 @@
 import logging
+from datetime import date
+from pathlib import Path
 
 from fastapi import (
     BackgroundTasks,
@@ -11,6 +13,7 @@ from fastapi import (
 )
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 import os
@@ -37,10 +40,12 @@ from app.auth.security import (
     decode_token,
     get_current_user,
     hash_password,
+    require_admin,
+    require_reviewer_or_admin,
     verify_password,
 )
 from app.api.rag_service import answer_basic_message, answer_question, ingest_and_index
-from app.db.postgres import PostgresStore, User
+from app.db.postgres import DOCUMENT_STATUSES, PostgresStore, USER_ROLES, User
 from app.core.rate_limiter import limiter, RATE_LIMIT_ASK, RATE_LIMIT_INGEST, RATE_LIMIT_CHAT
 
 
@@ -104,12 +109,33 @@ class AuthRefreshRequest(BaseModel):
     refresh_token: str = Field(..., min_length=20)
 
 
+class DocumentMetadataUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    department: Optional[str] = None
+    document_number: Optional[str] = None
+    document_date: Optional[date] = None
+    category: Optional[str] = None
+    language: Optional[str] = None
+
+
+class DocumentReviewRequest(BaseModel):
+    status: str = Field(..., min_length=5)
+    review_notes: Optional[str] = None
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    full_name: Optional[str] = None
+
+
 def _token_payload(user: User):
     return {
         "user": {
             "id": str(user.id),
             "email": user.email,
             "full_name": user.full_name,
+            "role": user.role,
         },
         "access_token": create_access_token(user),
         "refresh_token": create_refresh_token(user),
@@ -167,17 +193,38 @@ def refresh(req: AuthRefreshRequest):
     return _token_payload(user)
 
 
+@app.get("/auth/me")
+def auth_me(user: User = Depends(get_current_user)):
+    return {
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_active": getattr(user, "is_active", True),
+        }
+    }
+
+
 @app.post("/ingest/url")
 @limiter.limit(RATE_LIMIT_INGEST)
-def ingest_url(req: IngestUrlRequest, request: Request, user: User = Depends(get_current_user)):
+def ingest_url(req: IngestUrlRequest, request: Request, user: User = Depends(require_reviewer_or_admin())):
     """Ingest document(s) from URL(s) with multi-tenant isolation and rate limiting."""
     try:
+        pg = PostgresStore()
         urls = req.urls if req.urls else ([req.url] if req.url else [])
         if not urls:
             raise HTTPException(status_code=400, detail="Either url or urls must be provided.")
         results = []
         for url in urls:
             res = ingest_and_index(str(user.id), url, title=url)
+            pg.create_audit_log(
+                action="document.ingested_url",
+                actor_user_id=user.id,
+                target_type="document",
+                target_id=res.document_id,
+                detail={"source": url},
+            )
             results.append({
                 "document_id": res.document_id,
                 "source": res.source,
@@ -220,7 +267,7 @@ async def ingest_file(
     background_tasks: BackgroundTasks,
     request: Request,
     files: List[UploadFile] = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_reviewer_or_admin()),
 ):
     """Ingest one or more documents from file upload with multi-tenant isolation and rate limiting."""
     if not files:
@@ -265,6 +312,7 @@ async def ingest_file(
                     user_id=user.id,
                     source=saved_path,
                     title=filename,
+                    status="pending_review",
                 )
 
                 # OCR + multilingual ingestion happens in the background.
@@ -273,6 +321,14 @@ async def ingest_file(
                     str(user.id),
                     saved_path,
                     filename,
+                )
+
+                pg.create_audit_log(
+                    action="document.ingested_file",
+                    actor_user_id=user.id,
+                    target_type="document",
+                    target_id=str(doc_row.id),
+                    detail={"source": filename, "status": doc_row.status},
                 )
 
                 logger.info(
@@ -387,13 +443,27 @@ async def transcribe_voice(
 def list_documents(user: User = Depends(get_current_user)):
     """List all documents uploaded by the current user."""
     pg = PostgresStore()
-    docs = pg.list_documents(user_id=user.id)
+    is_privileged = user.role in {"system_admin", "legal_reviewer"}
+    docs = pg.list_documents(
+        user_id=user.id,
+        role=user.role,
+        include_unapproved=True,
+        scope_all=True,
+    )
+    if user.role == "desk_officer":
+        docs = [doc for doc in docs if doc.status != "pending_review"]
     return {
         "documents": [
             {
                 "id": str(d.id),
                 "source": d.source,
                 "title": d.title or os.path.basename(d.source),
+                "status": d.status,
+                "department": d.department,
+                "document_number": d.document_number,
+                "document_date": d.document_date.isoformat() if d.document_date else None,
+                "category": d.category,
+                "language": d.language,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
             }
             for d in docs
@@ -402,7 +472,7 @@ def list_documents(user: User = Depends(get_current_user)):
 
 
 @app.delete("/documents/{document_id}")
-def delete_document(document_id: str, user: User = Depends(get_current_user)):
+def delete_document(document_id: str, user: User = Depends(require_admin())):
     """Delete a document, its database chunks, and Qdrant vectors."""
     try:
         doc_uuid = uuid.UUID(document_id)
@@ -411,7 +481,7 @@ def delete_document(document_id: str, user: User = Depends(get_current_user)):
 
     pg = PostgresStore()
     # Delete from PostgreSQL (cascades to chunks)
-    deleted = pg.delete_document(user_id=user.id, document_id=doc_uuid)
+    deleted = pg.delete_document(user_id=user.id, document_id=doc_uuid, scope_all=True)
     if not deleted:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -420,7 +490,228 @@ def delete_document(document_id: str, user: User = Depends(get_current_user)):
     store = QdrantStore()
     store.delete_document(tenant_id=str(user.id), document_id=document_id)
 
+    pg.create_audit_log(
+        action="document.deleted",
+        actor_user_id=user.id,
+        target_type="document",
+        target_id=document_id,
+    )
+
     return {"ok": True}
+
+
+@app.get("/documents/{document_id}/download")
+def download_document(document_id: str, user: User = Depends(get_current_user)):
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid document_id") from e
+
+    pg = PostgresStore()
+    doc = pg.get_document(document_id=doc_uuid)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    privileged = user.role in {"system_admin", "legal_reviewer"}
+    if not privileged and doc.user_id != user.id and doc.status != "approved":
+        raise HTTPException(status_code=403, detail="You cannot access this document")
+
+    if doc.source.startswith(("http://", "https://")):
+        return RedirectResponse(url=doc.source, status_code=302)
+
+    file_path = Path(doc.source)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Stored file is missing")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=doc.title or file_path.name,
+        media_type="application/octet-stream",
+    )
+
+
+@app.patch("/documents/{document_id}/metadata")
+def update_document_metadata(document_id: str, req: DocumentMetadataUpdateRequest, user: User = Depends(require_reviewer_or_admin())):
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid document_id") from e
+
+    pg = PostgresStore()
+    doc = pg.update_document_metadata(
+        document_id=doc_uuid,
+        title=req.title,
+        department=req.department,
+        document_number=req.document_number,
+        document_date=req.document_date,
+        category=req.category,
+        language=req.language,
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    pg.create_audit_log(
+        action="document.metadata_updated",
+        actor_user_id=user.id,
+        target_type="document",
+        target_id=str(doc.id),
+        detail={"title": doc.title, "status": doc.status},
+    )
+
+    return {
+        "id": str(doc.id),
+        "source": doc.source,
+        "title": doc.title,
+        "status": doc.status,
+        "department": doc.department,
+        "document_number": doc.document_number,
+        "document_date": doc.document_date.isoformat() if doc.document_date else None,
+        "category": doc.category,
+        "language": doc.language,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+    }
+
+
+@app.post("/documents/{document_id}/review")
+def review_document(document_id: str, req: DocumentReviewRequest, user: User = Depends(require_reviewer_or_admin())):
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid document_id") from e
+
+    status_value = req.status.strip().lower()
+    if status_value not in DOCUMENT_STATUSES:
+        raise HTTPException(status_code=400, detail="status must be pending_review, approved, or rejected")
+
+    pg = PostgresStore()
+    doc = pg.set_document_review_state(
+        document_id=doc_uuid,
+        status=status_value,
+        reviewed_by=user.id,
+        review_notes=req.review_notes,
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if status_value == "approved":
+        try:
+            from app.embeddings.embedder import Embedder
+            from app.vectorstore.qdrant_store import QdrantStore
+
+            chunk_rows = pg.fetch_all_chunks(user_id=doc.user_id, document_id=doc.id)
+            if chunk_rows:
+                embedder = Embedder()
+                vectors = embedder.embed_texts([row.text for row in chunk_rows])
+                store = QdrantStore()
+                store.create_collection()
+                store.upload(
+                    vectors=vectors,
+                    payloads=[
+                        {
+                            "chunk_id": str(row.id),
+                            "document_id": str(row.document_id),
+                            "chunk_index": row.chunk_index,
+                            "page_number": row.page_number,
+                            "source": doc.title or os.path.basename(doc.source) or doc.source,
+                        }
+                        for row in chunk_rows
+                    ],
+                    ids=[str(row.id) for row in chunk_rows],
+                    tenant_id=str(doc.user_id),
+                )
+        except Exception as e:
+            logger.warning("Failed to index approved document %s into Qdrant: %s", doc.id, e)
+
+    pg.create_audit_log(
+        action=f"document.{status_value}",
+        actor_user_id=user.id,
+        target_type="document",
+        target_id=str(doc.id),
+        detail={"notes": req.review_notes},
+    )
+
+    return {
+        "id": str(doc.id),
+        "source": doc.source,
+        "title": doc.title,
+        "status": doc.status,
+        "reviewed_by": str(doc.reviewed_by) if doc.reviewed_by else None,
+        "reviewed_at": doc.reviewed_at.isoformat() if doc.reviewed_at else None,
+        "review_notes": doc.review_notes,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+    }
+
+
+@app.get("/admin/users")
+def list_users(user: User = Depends(require_admin())):
+    pg = PostgresStore()
+    rows = pg.list_users()
+    return {
+        "users": [
+            {
+                "id": str(row.id),
+                "email": row.email,
+                "full_name": row.full_name,
+                "role": row.role,
+                "is_active": row.is_active,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.patch("/admin/users/{user_id}")
+def update_user(user_id: str, req: UserRoleUpdateRequest, user: User = Depends(require_admin())):
+    try:
+        target_id = uuid.UUID(user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from e
+
+    pg = PostgresStore()
+    if req.role is not None and req.role not in USER_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    row = pg.update_user(user_id=target_id, role=req.role, is_active=req.is_active, full_name=req.full_name)
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    pg.create_audit_log(
+        action="user.updated",
+        actor_user_id=user.id,
+        target_type="user",
+        target_id=str(row.id),
+        detail={"role": row.role, "is_active": row.is_active},
+    )
+
+    return {
+        "id": str(row.id),
+        "email": row.email,
+        "full_name": row.full_name,
+        "role": row.role,
+        "is_active": row.is_active,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+@app.get("/admin/audit-logs")
+def list_audit_logs(user: User = Depends(require_admin()), limit: int = 100):
+    pg = PostgresStore()
+    rows = pg.list_audit_logs(limit=limit)
+    return {
+        "logs": [
+            {
+                "id": str(row.id),
+                "actor_user_id": str(row.actor_user_id) if row.actor_user_id else None,
+                "action": row.action,
+                "target_type": row.target_type,
+                "target_id": row.target_id,
+                "detail": row.detail or {},
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+    }
 
 
 @app.post("/ask")
@@ -482,6 +773,7 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
         
         result = answer_question(
             user_id=str(user.id),
+            user_role=user.role,
             document_ids=[str(d) for d in doc_uuids],
             question=req.question,
             top_k=req.top_k,
@@ -506,7 +798,7 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
 
 @app.post("/chat/basic")
 @limiter.limit(RATE_LIMIT_CHAT)
-def chat_basic(req: BasicChatRequest, request: Request, user: User = Depends(get_current_user)):
+def chat_basic(req: BasicChatRequest, request: Request, user: User = Depends(require_reviewer_or_admin())):
     """Basic chat without document context, with rate limiting."""
     try:
         pg = PostgresStore()

@@ -4,7 +4,7 @@ import { LogOut, User, Mail, Shield } from 'lucide-react'
 import { Button } from '../components/ui/button'
 
 export default function SettingsPage() {
-  const { userInfo, clearAuth } = useAuth()
+  const { userInfo, userRole, clearAuth } = useAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -46,7 +46,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3 text-sm">
               <Shield className="w-4 h-4 text-muted-foreground" />
               <span className="text-muted-foreground w-24">Role</span>
-              <span className="text-foreground">User</span>
+              <span className="text-foreground">{userRole}</span>
             </div>
           </div>
         </div>

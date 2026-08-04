@@ -33,6 +33,8 @@ export default function ChatPage({
   setError,
   status,
   setStatus,
+  canManageDocuments = false,
+  canUseBasicChat = false,
 }) {
   const { apiFetch, readJsonOrText } = useAuth()
   const navigate = useNavigate()
@@ -46,6 +48,28 @@ export default function ChatPage({
   const listRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
+
+  async function openDocument(doc) {
+    if (!doc?.id) return
+    if (doc.source?.startsWith('http://') || doc.source?.startsWith('https://')) {
+      window.open(doc.source, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    try {
+      const res = await apiFetch(`/documents/${doc.id}/download`)
+      if (!res.ok) {
+        const { json, text } = await readJsonOrText(res)
+        throw new Error(json?.detail || text || `Failed to open document (HTTP ${res.status}).`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (e) {
+      setError(e.message || String(e))
+    }
+  }
 
   useEffect(() => {
     const el = listRef.current
@@ -190,6 +214,10 @@ export default function ChatPage({
 
   async function sendQuestion() {
     const q = question.trim()
+    if (askMode === 'basic' && !canUseBasicChat) {
+      setError('Basic chat is available only for reviewer/admin accounts.')
+      return
+    }
     if (askMode === 'document' && selectedDocIds.length === 0) { setError('Please select at least one document.'); return }
     if (!q) return
     setError('')
@@ -230,7 +258,7 @@ export default function ChatPage({
     <div className="flex flex-1 h-full overflow-hidden">
       <div className="flex flex-col flex-1 relative">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-background -z-10" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-background to-background -z-10" />
 
         <ChatArea
           messages={messages}
@@ -265,6 +293,8 @@ export default function ChatPage({
         selectedDocIds={selectedDocIds}
         setSelectedDocIds={setSelectedDocIds}
         deleteDocument={deleteDocument}
+        canManageDocuments={canManageDocuments}
+        onDocumentClick={openDocument}
         status={status}
         error={error}
         isBusy={isBusy}

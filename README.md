@@ -105,6 +105,18 @@ The main retrieval path is built to reduce hallucinations. The system first expa
 | Frontend | React + Vite | Authenticated chat and document workflow UI |
 | Evaluation | RAGAs | Retrieval quality and answer quality checks |
 
+## Acknowledgements and Third-Party Resources
+
+This project uses third-party libraries, APIs, and pre-trained models. No external benchmark dataset is bundled with the repository; the evaluation pipeline uses a small local sample dataset, while production answers are grounded on user- or department-provided documents.
+
+- [Groq](https://groq.com/) API for LLM inference and query expansion. The codebase references `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, and `openai/gpt-oss-20b` depending on the runtime path.
+- [Qdrant](https://qdrant.tech/) for vector database storage and semantic retrieval.
+- [sentence-transformers](https://www.sbert.net/) and Hugging Face-hosted embedding models, including `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` and `sentence-transformers/all-MiniLM-L6-v2`.
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) for OCR on scanned and image-based documents, using PP-OCRv5 model variants.
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) for speech-to-text transcription; Whisper checkpoints are downloaded from the Hugging Face ecosystem at runtime.
+- [Hugging Face Datasets](https://huggingface.co/docs/datasets) and [RAGAs](https://github.com/explodinggradients/ragas) for evaluation tooling.
+- Open-source framework dependencies used throughout the stack include [FastAPI](https://fastapi.tiangolo.com/), [LangChain](https://python.langchain.com/), [React](https://react.dev/), [Vite](https://vitejs.dev/), and [PostgreSQL](https://www.postgresql.org/).
+
 ---
 
 ## Repository Layout

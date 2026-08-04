@@ -7,7 +7,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.db.postgres import PostgresStore, User
+from app.db.postgres import PostgresStore, User, USER_ROLES
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-in-production-please-set-strong-secret")
 JWT_ALGORITHM = "HS256"
@@ -43,6 +43,7 @@ def create_access_token(user: User) -> str:
         {
             "sub": str(user.id),
             "email": user.email,
+            "role": user.role,
             "token_type": "access",
         },
         timedelta(minutes=ACCESS_TOKEN_MINUTES),
@@ -54,6 +55,7 @@ def create_refresh_token(user: User) -> str:
         {
             "sub": str(user.id),
             "email": user.email,
+            "role": user.role,
             "token_type": "refresh",
         },
         timedelta(days=REFRESH_TOKEN_DAYS),
@@ -85,5 +87,26 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
     user = pg.get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if not getattr(user, "is_active", True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
 
     return user
+
+
+def require_roles(*allowed_roles: str):
+    normalized_roles = {role for role in allowed_roles if role in USER_ROLES}
+
+    def _dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in normalized_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return user
+
+    return _dependency
+
+
+def require_reviewer_or_admin():
+    return require_roles("system_admin", "legal_reviewer")
+
+
+def require_admin():
+    return require_roles("system_admin")

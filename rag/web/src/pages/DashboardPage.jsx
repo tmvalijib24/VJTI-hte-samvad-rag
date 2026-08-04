@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { MessageSquare, Upload, History, FileText, Plus, Bot, Clock, Trash2 } from 'lucide-react'
+import { MessageSquare, Upload, History, FileText, Plus, Bot, Clock, Trash2, Settings } from 'lucide-react'
 import { Button } from '../components/ui/button'
 
 export default function DashboardPage({
@@ -11,7 +11,7 @@ export default function DashboardPage({
   deleteSession,
 }) {
   const navigate = useNavigate()
-  const { userInfo, clearAuth } = useAuth()
+  const { userInfo, userRole, clearAuth } = useAuth()
 
   const firstName = userInfo?.full_name?.split(' ')[0] || userInfo?.email?.split('@')[0] || 'there'
   const recentSessions = chatSessions.slice(0, 5)
@@ -31,21 +31,45 @@ export default function DashboardPage({
       color: 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20',
       action: () => navigate('/chat'),
     },
-    {
+  ]
+
+  if (userRole !== 'desk_officer') {
+    quickActions.push({
       icon: <Upload className="w-5 h-5" />,
       label: 'Upload Documents',
       desc: 'Add PDFs, text, or URLs',
       color: 'bg-secondary/60 text-secondary-foreground border-border hover:bg-secondary',
       action: () => navigate('/documents'),
-    },
-    {
-      icon: <History className="w-5 h-5" />,
-      label: 'Chat History',
-      desc: 'Browse past conversations',
+    })
+  }
+
+  if (userRole === 'legal_reviewer' || userRole === 'system_admin') {
+    quickActions.push({
+      icon: <FileText className="w-5 h-5" />,
+      label: 'Review Queue',
+      desc: 'Approve or reject documents',
       color: 'bg-secondary/60 text-secondary-foreground border-border hover:bg-secondary',
-      action: () => navigate('/history'),
-    },
-  ]
+      action: () => navigate('/reviewer'),
+    })
+  }
+
+  if (userRole === 'system_admin') {
+    quickActions.push({
+      icon: <Settings className="w-5 h-5" />,
+      label: 'Admin Console',
+      desc: 'Manage users and audit logs',
+      color: 'bg-secondary/60 text-secondary-foreground border-border hover:bg-secondary',
+      action: () => navigate('/admin'),
+    })
+  }
+
+  quickActions.push({
+    icon: <History className="w-5 h-5" />,
+    label: 'Chat History',
+    desc: 'Browse past conversations',
+    color: 'bg-secondary/60 text-secondary-foreground border-border hover:bg-secondary',
+    action: () => navigate('/history'),
+  })
 
   return (
     <div className="flex-1 overflow-y-auto p-6 lg:p-10">
