@@ -23,7 +23,8 @@ class Generator:
         self,
         query,
         contexts,
-        chat_history=None
+        chat_history=None,
+        language=None
     ):
         """
         Generate a grounded RAG answer.
@@ -226,9 +227,6 @@ ANSWER QUALITY
 8. Keep the answer concise but sufficiently detailed.
 
 ========================
-CITATION POLICY
-========================
-
 Every factual statement derived from the context must have at least one citation.
 
 For example:
@@ -238,6 +236,15 @@ RAGNexus uses FastAPI for its backend and React with Vite for its frontend. [1]
 Its retrieval pipeline combines dense vector search with BM25 keyword retrieval. [1][2]
 
 Do not place citations on separate lines unless necessary.
+
+{f'''
+========================
+STRICT LANGUAGE OVERRIDE ACTIVE
+========================
+You MUST answer ONLY in {"Marathi (मराठी)" if language == "mr" else "English"}.
+Do NOT answer in any other language, regardless of the question's language.
+========================
+''' if language else ''}
 """
 
         # -------------------------------------------------
@@ -444,3 +451,43 @@ override the language of the current user message.
             return title if title else ""
         except Exception:
             return ""
+
+    def translate(self, text: str, target_language: str) -> str:
+        """
+        Translates the given text into the target language.
+        Preserves markdown, citations (e.g. [1]), document names, page numbers, and URLs.
+        """
+        try:
+            target_lang_name = "Marathi" if target_language == "mr" else "English"
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            f"You are a precise translator. Translate the following text into {target_lang_name}. "
+                            "CRITICAL INSTRUCTIONS:\n"
+                            "1. Preserve all markdown formatting (bold, italics, lists, code blocks).\n"
+                            "2. Preserve all citations EXACTLY as they appear (e.g., [1], [2], [1][2]). DO NOT translate or modify the numbers or brackets.\n"
+                            "3. Do not translate URLs, document names, or page numbers.\n"
+                            "4. Return ONLY the translated text. Do not add any conversational filler."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": text,
+                    },
+                ],
+                temperature=0.1,
+            )
+
+            return (
+                response
+                .choices[0]
+                .message
+                .content
+                or text
+            ).strip()
+        except Exception as e:
+            print(f"Translation error: {e}")
+            return text

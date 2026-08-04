@@ -14,6 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
+import { useLanguage } from "../../context/LanguageContext";
 
 export function DocumentManager({
   documents,
@@ -33,6 +34,7 @@ export function DocumentManager({
   setFiles,
   submitUpload,
 }) {
+  const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef(null);
@@ -118,10 +120,12 @@ export function DocumentManager({
       <div className={fullPage ? "p-6 lg:p-8 space-y-6" : "p-5 space-y-6"}>
         <div>
           <h3 className="text-sm font-semibold mb-3 flex items-center justify-between">
-            <span>Knowledge Base</span>
-            <Badge variant="secondary" className="font-normal text-xs">
-              {documents.length}
-            </Badge>
+            <span>{t('docs.knowledgeBase')}</span>
+            {!fullPage && (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {documents.length}
+              </Badge>
+            )}
           </h3>
 
           <div 
@@ -134,12 +138,12 @@ export function DocumentManager({
             <Input
               ref={searchInputRef}
               type="text"
-              placeholder="Search documents..."
+              placeholder={t('docs.searchDocs')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={handleSearchFocus}
               onBlur={handleSearchBlur}
-              className="pl-9 pr-9 bg-background/40 backdrop-blur-md border-border/50 hover:border-accent/50 focus:border-accent focus:ring-accent rounded-xl h-10 transition-colors"
+              className="pl-9 pr-8 h-9 bg-background/50 border-border/50 focus:border-accent/40 focus:ring-accent/20 transition-all rounded-xl text-sm"
             />
             {searchQuery && (
               <button
@@ -240,13 +244,13 @@ export function DocumentManager({
 
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Available Documents
+            {t('docs.availableDocs')}
           </h4>
           <div className={fullPage ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2"}>
             {filteredDocuments.length === 0 ? (
               <div className="text-center py-10 flex flex-col items-center gap-3 text-sm text-muted-foreground bg-secondary/20 rounded-2xl border border-dashed border-border/50 col-span-full">
                 <Search className="w-8 h-8 opacity-20" />
-                <p>No documents found.</p>
+                <p>{t('docs.noDocsFound')}</p>
               </div>
             ) : (
               filteredDocuments.map((doc) => {

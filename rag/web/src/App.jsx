@@ -15,10 +15,12 @@ import SettingsPage from './pages/SettingsPage'
 import ReviewerPage from './pages/ReviewerPage'
 import AdminPage from './pages/AdminPage'
 import ComparePage from './pages/ComparePage'
+import { useLanguage, LanguageProvider } from './context/LanguageContext'
 
 // Inner app that has access to AuthContext
 function InnerApp() {
   const { isAuthed, apiFetch, readJsonOrText, clearAuth, userRole, profileLoaded } = useAuth()
+  const { lang, t } = useLanguage()
 
   // ── Shared state (chat, sessions, documents) ──────────────────────────────
   const [askMode, setAskMode] = useState('document')
@@ -27,7 +29,7 @@ function InnerApp() {
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [messages, setMessages] = useState([
-    { id: crypto.randomUUID(), role: 'assistant', content: 'Upload or select document(s) first, then ask questions.' },
+    { id: crypto.randomUUID(), role: 'assistant', content: t('chat.uploadFirst') },
   ])
   const [isBusy, setIsBusy] = useState(false)
   const [sessionId, setSessionId] = useState(null)
@@ -43,10 +45,10 @@ function InnerApp() {
   function defaultAssistantMessage(nextMode, selectedCount) {
     if (nextMode === 'document') {
       return selectedCount > 0
-        ? 'Document mode is active. Ask about your selected content.'
-        : 'Upload or select document(s) first, then ask questions.'
+        ? t('chat.docModeActive')
+        : t('chat.uploadFirst')
     }
-    return 'Basic chat mode is active. Ask anything.'
+    return t('chat.basicModeActive')
   }
 
   function mapHistoryToMessages(history) {
@@ -145,28 +147,14 @@ function InnerApp() {
   async function startNewChat() {
     setError('')
     setStatus('')
-    try {
-      const nextMode = askMode === 'document' ? 'document' : 'basic'
-      if (nextMode === 'basic' && userRole === 'desk_officer') {
-        throw new Error('Basic chat is available only for reviewer/admin accounts.')
-      }
-      const payload = {
-        mode: nextMode,
-        document_ids: nextMode === 'document' ? selectedDocIds : [],
-      }
-      const res = await apiFetch('/chat/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const { json, text } = await readJsonOrText(res)
-      if (!res.ok) throw new Error(json?.detail || text || 'Failed to create chat session')
-      setSessionId(json.id)
-      setMessages([{ id: crypto.randomUUID(), role: 'assistant', content: defaultAssistantMessage(askMode, selectedDocIds.length) }])
-      await loadSessionList()
-    } catch (e) {
-      setError(e.message || String(e))
+    const nextMode = askMode === 'document' ? 'document' : 'basic'
+    if (nextMode === 'basic' && userRole === 'desk_officer') {
+      setError('Basic chat is available only for reviewer/admin accounts.')
+      return
     }
+    setAskMode(nextMode)
+    setSessionId(null)
+    setMessages([{ id: crypto.randomUUID(), role: 'assistant', content: defaultAssistantMessage(nextMode, selectedDocIds.length) }])
   }
 
   function switchAskMode(nextMode) {
@@ -454,9 +442,11 @@ function SessionDialog({ sessionDialog, sessionTitleInput, setSessionTitleInput,
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <InnerApp />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <InnerApp />
+        </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   )
 }

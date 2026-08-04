@@ -1,6 +1,7 @@
 import React, { useRef } from 'react'
 import { Send, Mic, Square } from 'lucide-react'
 import { Button } from '../ui/button'
+import { useLanguage } from '../../context/LanguageContext'
 
 export function ChatInput({
   question,
@@ -13,6 +14,7 @@ export function ChatInput({
   isTranscribing,
   toggleRecording
 }) {
+  const { t } = useLanguage()
   const textareaRef = useRef(null)
 
   const handleKeyDown = (e) => {
@@ -42,7 +44,7 @@ export function ChatInput({
             <textarea
               ref={textareaRef}
               rows={1}
-              placeholder="Ask anything..."
+              placeholder={t('chat.askPlaceholder')}
               className="flex-1 max-h-[200px] min-h-[44px] bg-transparent border-0 resize-none py-3 px-4 text-sm focus:outline-none focus:ring-0 text-foreground placeholder:text-muted-foreground"
               value={question}
               onChange={handleInput}
@@ -61,7 +63,7 @@ export function ChatInput({
                 } ${isTranscribing ? 'animate-pulse' : ''}`}
                 onClick={toggleRecording}
                 disabled={isBusy && !isRecording}
-                title={isRecording ? 'Stop recording' : 'Start voice input'}
+                title={isRecording ? t('chat.stopRecording') : t('chat.startVoice')}
               >
                 {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
               </Button>
@@ -73,7 +75,7 @@ export function ChatInput({
                   variant="secondary"
                   className="rounded-full shadow-sm"
                   onClick={stopAsk}
-                  title="Stop generating"
+                  title={t('chat.stopGenerating')}
                 >
                   <Square className="w-4 h-4 fill-current" />
                 </Button>
@@ -85,7 +87,7 @@ export function ChatInput({
                     canAsk ? 'bg-accent hover:bg-accent/90 text-white' : 'bg-muted text-muted-foreground opacity-50'
                   }`}
                   disabled={!canAsk}
-                  title="Send message"
+                  title={t('chat.sendMessage')}
                 >
                   <Send className="w-4 h-4" />
                 </Button>
@@ -94,7 +96,7 @@ export function ChatInput({
           </div>
         </form>
         <div className="text-center mt-3 text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
-          AI can make mistakes. Verify important info.
+          {t('chat.aiDisclaimer')}
         </div>
       </div>
     </div>

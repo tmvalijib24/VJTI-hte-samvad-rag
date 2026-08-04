@@ -44,7 +44,7 @@ from app.auth.security import (
     require_reviewer_or_admin,
     verify_password,
 )
-from app.api.rag_service import answer_basic_message, answer_question, generate_chat_title, ingest_and_index
+from app.api.rag_service import answer_basic_message, answer_question, generate_chat_title, ingest_and_index, translate_texts
 from app.db.postgres import DOCUMENT_STATUSES, PostgresStore, USER_ROLES, User
 from app.core.rate_limiter import limiter, RATE_LIMIT_ASK, RATE_LIMIT_INGEST, RATE_LIMIT_CHAT
 
@@ -77,11 +77,17 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
     top_k: int = Field(10, ge=1, le=20)
     session_id: Optional[str] = None
+    language: Optional[str] = None
 
 
 class BasicChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     session_id: Optional[str] = None
+    language: Optional[str] = None
+
+class TranslateRequest(BaseModel):
+    texts: List[str]
+    target_language: str
 
 
 class ChatSessionCreateRequest(BaseModel):
@@ -779,6 +785,7 @@ def ask(req: AskRequest, request: Request, user: User = Depends(get_current_user
             question=req.question,
             top_k=req.top_k,
             chat_history=chat_history,
+            language=req.language,
         )
 
         pg.append_chat_message(
@@ -867,7 +874,7 @@ def chat_basic(req: BasicChatRequest, request: Request, user: User = Depends(req
             content=req.message,
         )
 
-        answer = answer_basic_message(req.message, chat_history=chat_history)
+        answer = answer_basic_message(req.message, chat_history=chat_history, language=req.language)
 
         pg.append_chat_message(
             user_id=user.id,
@@ -881,6 +888,18 @@ def chat_basic(req: BasicChatRequest, request: Request, user: User = Depends(req
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.post("/chat/translate")
+@limiter.limit("20/minute")
+def chat_translate(req: TranslateRequest, request: Request, user: User = Depends(get_current_user)):
+    """Batch translate messages."""
+    try:
+        translated = translate_texts(req.texts, req.target_language)
+        return {"translations": translated}
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to translate messages")
 
 
 @app.post("/chat/sessions")

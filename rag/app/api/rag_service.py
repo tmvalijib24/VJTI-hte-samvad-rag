@@ -98,14 +98,16 @@ def generate_chat_title(message: str) -> str:
     # Fallback: extract meaningful words
     return _fallback_title(text)
 
-def answer_basic_message(message: str, chat_history: List[Dict[str, str]] | None = None) -> str:
-    """Use Groq free model for general basic chat mode."""
-    prompt = (message or "").strip()
-    if not prompt:
+def answer_basic_message(
+    prompt: str,
+    chat_history: List[Dict[str, str]] | None = None,
+    language: str | None = None,
+) -> str:
+    """Answer a basic chat message without document context."""
+    if not prompt.strip():
         return "Please type a message."
-
     generator = Generator()
-    return generator.generate_basic(prompt, chat_history=chat_history)
+    return generator.generate_basic(prompt, chat_history=chat_history, language=language)
 
 
 def ingest_and_index(user_id: str, source: str, title: str | None = None) -> IngestResult:
@@ -182,6 +184,7 @@ def answer_question(
     question: str,
     top_k: int = 5,
     chat_history: List[Dict[str, str]] | None = None,
+    language: str | None = None,
 ) -> Dict[str, Any]:
     """
     Run retrieval + generation for one or more documents.
@@ -313,9 +316,19 @@ def answer_question(
         header = f"[{i}] {src}" + (f" (Page {page})" if page is not None else "")
         context_blocks.append(f"{header}\n{s.get('text') or ''}".strip())
 
-    answer = generator.generate(question, context_blocks, chat_history=chat_history)
+    answer = generator.generate(question, context_blocks, chat_history=chat_history, language=language)
 
     return {
         "answer": answer,
         "sources": sources,
     }
+
+
+def translate_texts(texts: List[str], target_language: str) -> List[str]:
+    """Batch translate messages."""
+    if not texts:
+        return []
+    generator = Generator()
+    # For now we'll just loop; could use batch API if provider supports it
+    return [generator.translate(text, target_language) for text in texts]
+

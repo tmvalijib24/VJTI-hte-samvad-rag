@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Bot, User, FileText, ChevronRight, Sparkles } from 'lucide-react'
 import { Badge } from '../ui/badge'
 import gsap from 'gsap'
+import { useLanguage } from '../../context/LanguageContext'
 
 export function ChatArea({
   messages,
@@ -11,6 +12,7 @@ export function ChatArea({
   selectedDocIds,
   listRef
 }) {
+  const { t } = useLanguage()
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function ChatArea({
                   <div className="mt-4 pt-4 border-t border-border/50">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                       <FileText className="w-3 h-3" />
-                      Sources
+                      {t('chat.sources')}
                     </p>
                     <div className="space-y-2">
                       {m.sources.map((src, i) => (
@@ -71,7 +73,7 @@ export function ChatArea({
                           <div className="flex items-center justify-between font-medium text-foreground mb-1">
                             <span className="truncate pr-4">{src.source || 'Unknown'}</span>
                             <Badge variant="outline" className="text-[10px] shrink-0 bg-background/50">
-                              Page {src.page_number ?? '?'}
+                              {t('chat.page')} {src.page_number ?? '?'}
                             </Badge>
                           </div>
                           <div className="text-muted-foreground line-clamp-2 group-hover:line-clamp-none transition-all duration-300">

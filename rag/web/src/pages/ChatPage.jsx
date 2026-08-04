@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { ChatArea } from '../components/chat/ChatArea'
 import { ChatInput } from '../components/chat/ChatInput'
 import { DocumentManager } from '../components/documents/DocumentManager'
+import { useLanguage } from '../context/LanguageContext'
 
 export default function ChatPage({
   askMode,
@@ -44,6 +45,9 @@ export default function ChatPage({
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [voiceError, setVoiceError] = useState('')
+
+  const { lang } = useLanguage()
+  const [translatedMessages, setTranslatedMessages] = useState([])
 
   const listRef = useRef(null)
   const mediaRecorderRef = useRef(null)
@@ -238,8 +242,8 @@ export default function ChatPage({
     try {
       const endpoint = askMode === 'document' ? '/ask' : '/chat/basic'
       const payload = askMode === 'document'
-        ? { document_ids: selectedDocIds, question: q, top_k: 10, session_id: sessionId }
-        : { message: q, session_id: sessionId }
+        ? { document_ids: selectedDocIds, question: q, top_k: 10, session_id: sessionId, language: lang }
+        : { message: q, session_id: sessionId, language: lang }
       const res = await apiFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,6 +267,66 @@ export default function ChatPage({
     }
   }
 
+  useEffect(() => {
+    const cacheKey = `trans_cache_${sessionId || 'new'}`
+    const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}')
+    
+    const translateBatch = async () => {
+      // Find texts that need translation for the CURRENT lang
+      const toTranslate = []
+      messages.forEach(m => {
+        if (!m.content) return
+        
+        // We skip translation if the message was JUST generated under the current lang.
+        // We can approximate this: if the message was generated, we don't know its lang,
+        // but let's just translate it if it's not cached. 
+        // Wait, to avoid redundant translation of a message we JUST received in 'mr' while in 'mr':
+        // The LLM generated it in 'mr'. If we send it to translate to 'mr', it's a no-op but costs API.
+        // To save API, we assume the original message is in the language it was created under.
+        // But we don't track original language.
+        // Let's just always translate if not in cache.
+        
+        const tKey = `${lang}_${m.id}_${m.content.length}`
+        if (!cache[tKey]) {
+          // If we are just starting and the message is default English, or if we switched lang
+          toTranslate.push({ id: m.id, content: m.content, tKey })
+        }
+      })
+
+      if (toTranslate.length > 0) {
+        try {
+          const res = await apiFetch('/chat/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              texts: toTranslate.map(x => x.content),
+              target_language: lang
+            })
+          })
+          const { json } = await readJsonOrText(res)
+          if (res.ok && json.translations) {
+            toTranslate.forEach((item, idx) => {
+              cache[item.tKey] = json.translations[idx]
+            })
+            localStorage.setItem(cacheKey, JSON.stringify(cache))
+          }
+        } catch (e) {
+          console.error('Translation failed:', e)
+        }
+      }
+
+      // Build translated messages
+      const newTrans = messages.map(m => {
+        if (!m.content) return m
+        const tKey = `${lang}_${m.id}_${m.content.length}`
+        return { ...m, content: cache[tKey] || m.content }
+      })
+      setTranslatedMessages(newTrans)
+    }
+
+    translateBatch()
+  }, [messages, lang, sessionId, apiFetch, readJsonOrText])
+
   return (
     <div className="flex flex-1 h-full overflow-hidden">
       <div className="flex flex-col flex-1 relative">
@@ -270,7 +334,7 @@ export default function ChatPage({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-background to-background -z-10" />
 
         <ChatArea
-          messages={messages}
+          messages={translatedMessages.length > 0 ? translatedMessages : messages}
           isBusy={isBusy}
           defaultAssistantMessage={defaultAssistantMessage}
           askMode={askMode}

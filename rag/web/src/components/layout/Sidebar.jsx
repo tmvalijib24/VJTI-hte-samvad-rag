@@ -4,6 +4,8 @@ import gsap from 'gsap'
 import { Button } from '../ui/button'
 import { LogOut, Plus, FileText, MessageSquare, Trash2, Edit2, LayoutDashboard, History, Settings, GitCompare } from 'lucide-react'
 import { ScrollArea } from '../ui/scroll-area'
+import { useLanguage } from '../../context/LanguageContext'
+import { LanguageSelector } from './LanguageSelector'
 
 export function Sidebar({
   userInfo,
@@ -19,6 +21,7 @@ export function Sidebar({
   askMode,
   setAskMode
 }) {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const prevSessionIdsRef = useRef(new Set())
@@ -62,19 +65,19 @@ export function Sidebar({
   }, [chatSessions])
 
   const navItems = [
-    { icon: <LayoutDashboard className="w-4 h-4" />, label: 'Dashboard', path: '/dashboard' },
-    { icon: <MessageSquare className="w-4 h-4" />, label: 'Chat', path: '/chat' },
-    { icon: <FileText className="w-4 h-4" />, label: 'Documents', path: '/documents' },
-    { icon: <GitCompare className="w-4 h-4" />, label: 'Compare', path: '/compare' },
-    { icon: <History className="w-4 h-4" />, label: 'History', path: '/history' },
-    { icon: <Settings className="w-4 h-4" />, label: 'Settings', path: '/settings' },
+    { icon: <LayoutDashboard className="w-4 h-4" />, label: t('nav.dashboard'), path: '/dashboard' },
+    { icon: <MessageSquare className="w-4 h-4" />, label: t('nav.chat'), path: '/chat' },
+    { icon: <FileText className="w-4 h-4" />, label: t('nav.documents'), path: '/documents' },
+    { icon: <GitCompare className="w-4 h-4" />, label: t('nav.compare'), path: '/compare' },
+    { icon: <History className="w-4 h-4" />, label: t('nav.history'), path: '/history' },
+    { icon: <Settings className="w-4 h-4" />, label: t('nav.settings'), path: '/settings' },
   ]
 
   if (userRole === 'legal_reviewer' || userRole === 'system_admin') {
-    navItems.splice(3, 0, { icon: <FileText className="w-4 h-4" />, label: 'Review Queue', path: '/reviewer' })
+    navItems.splice(3, 0, { icon: <FileText className="w-4 h-4" />, label: t('nav.reviewQueue'), path: '/reviewer' })
   }
   if (userRole === 'system_admin') {
-    navItems.splice(5, 0, { icon: <Settings className="w-4 h-4" />, label: 'Admin Console', path: '/admin' })
+    navItems.splice(5, 0, { icon: <Settings className="w-4 h-4" />, label: t('nav.adminConsole'), path: '/admin' })
   }
 
   return (
@@ -88,9 +91,12 @@ export function Sidebar({
             <p className="text-xs text-muted-foreground truncate">{userInfo?.full_name || userInfo?.email || 'Workspace'}</p>
           </div>
         </Link>
-        <Button variant="ghost" size="icon" onClick={clearAuth} title="Logout" className="shrink-0">
-          <LogOut className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <LanguageSelector />
+          <Button variant="ghost" size="icon" onClick={clearAuth} title={t('nav.logout')} className="shrink-0">
+            <LogOut className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+          </Button>
+        </div>
       </div>
 
       {/* New Chat button */}
@@ -100,7 +106,7 @@ export function Sidebar({
           className="w-full justify-start rounded-xl shadow-sm hover:shadow transition-all bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="w-4 h-4 mr-2" />
-          New Chat
+          {t('nav.newChat')}
         </Button>
       </div>
 
